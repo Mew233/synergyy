@@ -36,12 +36,13 @@ pip install -e .
 ```
 
 #### Features explained
-| Model |  Input feature format      || Feature encoders       || Dataset | Performance measures | Ref. |
-| ------|:--------------------:|:----:|:----------------:|:----:|:-------:|:--------------------:|-----:|
-|       | Cell line            | Drug | Cell line        | Drug |         |                      |      |
-|       |                      |      |                  |      |         |                      |      |
-|       |                      |      |                  |      |         |                      |      |
-|       |                      |      |                  |      |         |                      |      |
+| Model |  Input feature format      || Feature encoders       ||
+| ------|:--------------------:|:----:|:----------------:|:----:|
+|       | Cell line            | Drug | Cell line        | Drug |        |                      |      
+| ML approaches: RF,XGBoost,ERT       | exp/cnv/mut  |  Drug-target interaction    |                  |      |         |                      |      
+|  DeepSynergy |    exp                  |  Drug-target interaction    |                 |      |         |                      |      |
+|  MatchMaker |    exp                  |  Drug-target interaction    |                  |      |         |                      |      |
+|  Multitask_DNN |  exp, Tissue/cancer type   |  MACCS ingerprints, SMILES, Drug-target interaction    |     CNN   | CNN     |
 
 ****
 #### Data downloaded
@@ -56,11 +57,11 @@ In detail, the following drug synergy prediction models were implemented.
 - Baseline machine Learning models (random forest, extreme gradient boosting, extremely randomized tree, logistic regression)
 
 - End-to-end deep learning models
-    - [1] Kristina Preuer, Richard PI Lewis, Sepp Hochre-iter, Andreas Bender, Krishna C Bulusu, and G ̈unter Klambauer.DeepSynergy: Predicting Anti-Cancer Drug Synergy with DeepLearning.Bioinformatics, 34(9):1538–1546, 2018.
-    - [2] Kuru Halil Brahim, Oznur Tastan, and Ercument Cicek. MatchMaker: A Deep Learning Framework 
-    for Drug Synergy Prediction. IEEE/ACM Transactions on Computational Biology and Bioinformatics, 2021.
-    - [3] Yejin Kim, Shuyu Zheng, Jing Tang, Wenjin Jim Zheng, Zhao Li, and Xiaoqian Jiang. Anticancer Drug Synergy
-    Prediction in Understudied Tissues Using Transfer Learning. Journal of the American Medical Informatics Association, 28(1):42–51, 2021.
+    - [1] [Kristina Preuer, Richard PI Lewis, Sepp Hochre-iter, Andreas Bender, Krishna C Bulusu, and G ̈unter Klambauer.DeepSynergy: Predicting Anti-Cancer Drug Synergy with DeepLearning.Bioinformatics, 34(9):1538–1546, 2018.](https://academic.oup.com/bioinformatics/article/34/9/1538/4747884?login=false)
+    - [2] [Kuru Halil Brahim, Oznur Tastan, and Ercument Cicek. MatchMaker: A Deep Learning Framework 
+    for Drug Synergy Prediction. IEEE/ACM Transactions on Computational Biology and Bioinformatics, 2021.](https://ieeexplore-ieee-org.proxy.library.cornell.edu/document/9447196/)
+    - [3] [Yejin Kim, Shuyu Zheng, Jing Tang, Wenjin Jim Zheng, Zhao Li, and Xiaoqian Jiang. Anticancer Drug Synergy
+    Prediction in Understudied Tissues Using Transfer Learning. Journal of the American Medical Informatics Association, 28(1):42–51, 2021.](https://academic.oup.com/jamia/article/28/1/42/5920819?login=true)
 ****
 
 #### Constructing ...
