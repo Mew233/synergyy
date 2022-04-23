@@ -43,7 +43,7 @@ pip install -e .
 |  DeepSynergy   |    exp  |  Drug chemical descriptor    |    DNN             |   DNN    |      |      |   True   |
 |  MatchMaker    |    exp  |  Drug chemical descriptor    |    DNN              |  DNN    |      |      |   False    |
 |  Multitask_DNN |    exp, Cancer/Tissue type|  MACCS fingerprints, SMILES, Drug-target interaction    |     DNN   | DNN     | False | False| False |
-|  DeepDDS|    exp |  SMILES   |     GCN   | MLP     | | | False |
+|  DeepDDS|    exp |  SMILES2Graph   |     GCN   | MLP     | | | False |
 
 ****
 #### Data downloaded
