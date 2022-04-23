@@ -18,11 +18,13 @@ cd synergyy/
 #create conda environment
 conda env create --name synergyy --file=environments.yml
 
+conda activate synergyy
+
 #install synergyy
 pip install -e .
 
-#Download data/ and put it in the same path as setup.py
-#
+#Please download data/ and put it in the same path as setup.py
+#https://drive.google.com/drive/folders/1Uu0YZSxX8GQtV_4ZJmsMrbanmse-Dq6n?usp=sharing
 
 ```
 ****
@@ -43,7 +45,7 @@ pip install -e .
 
 ****
 #### Data downloaded
-SynergyY used multi-omics datasets. Please download:  
+SynergyY used multi-omics datasets. 
 1. DrugComb v1.5 synergy dataset 
 2. CCLE dataset including exp, cnv, mut
 3. Drug-target interaction dataset from DrugComb,  and structures.sdf which  enables fingerprints calculation
