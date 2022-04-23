@@ -10,14 +10,24 @@ The user can also freely to include new dataset , and select preferential cell/d
 Use the package manager [pip](https://pip.pypa.io/en/stable/) to install synergyy.
 
 ```bash
-pip install synergyy
+# Unzip 
+unzip synergyy.zip
+
+cd synergyy/
+
+#create conda environment
+conda env create --name synergyy --file=environments.yml
+
+#install synergyy
+pip install -e.
+
 ```
 ****
 
 #### Getting strarted
 
 ```bash
-python main.py --
+python synergyy/main.py
 ```
 #### Features explained
 | Model |  Input feature format      || Feature encoders       || Dataset | Performance measures | Ref. |
