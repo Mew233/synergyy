@@ -19,7 +19,7 @@ cd synergyy/
 conda env create --name synergyy --file=environments.yml
 
 #install synergyy
-pip install -e.
+pip install -e .
 
 ```
 ****
@@ -27,8 +27,9 @@ pip install -e.
 #### Getting strarted
 
 ```bash
-python synergyy/main.py
+ python synergyy/main.py --model 'deepsynergy_preuer' --synergy_df 'DrugComb' --train_test_mode train
 ```
+
 #### Features explained
 | Model |  Input feature format      || Feature encoders       || Dataset | Performance measures | Ref. |
 | ------|:--------------------:|:----:|:----------------:|:----:|:-------:|:--------------------:|-----:|
