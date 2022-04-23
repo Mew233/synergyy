@@ -21,6 +21,9 @@ conda env create --name synergyy --file=environments.yml
 #install synergyy
 pip install -e .
 
+#Download data/ and put it in the same path as setup.py
+#
+
 ```
 ****
 
