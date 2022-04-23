@@ -36,13 +36,13 @@ pip install -e .
 ```
 
 #### Features explained
-| Model |  Input feature format      || Feature encoders       ||
-| ------|:--------------------:|:----:|:----------------:|:----:|
-|       | Cell line            | Drug | Cell line        | Drug |        |                      |      
-| ML approaches: RF,XGBoost,ERT       | exp/cnv/mut  |  Drug-target interaction    |                  |      |         |                      |      
-|  DeepSynergy |    exp                  |  Drug-target interaction    |                 |      |         |                      |      |
-|  MatchMaker |    exp                  |  Drug-target interaction    |                  |      |         |                      |      |
-|  Multitask_DNN |  exp, Tissue/cancer type   |  MACCS ingerprints, SMILES, Drug-target interaction    |     CNN   | CNN     |
+| Model |  Input feature format      || Feature encoders       || Features concatenated   ||Drug1 and drug2 summed  |
+| ------|:--------------------:|:----:|:----------------:|:----:|:----------------:|:----:|:----------------:|
+|       | *Cell line*            | *Drug* | *Cell line*        | *Drug* |     *Cell line*   |       *Drug*               |      
+| ML approaches: RF,XGBoost,ERT  | exp/cnv/mut  |  Drug-target interaction    |       |      |         |       |  True|        
+|  DeepSynergy   |    exp  |  Drug chemical descriptor    |    DNN             |   DNN    |      |      |   True   |
+|  MatchMaker    |    exp  |  Drug chemical descriptor    |    DNN              |  DNN    |      |      |   False    |
+|  Multitask_DNN |    exp, Cancer/Tissue type|  MACCS ingerprints, SMILES, Drug-target interaction    |     DNN   | DNN     | False | False| False |
 
 ****
 #### Data downloaded
