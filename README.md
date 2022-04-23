@@ -42,7 +42,8 @@ pip install -e .
 | ML approaches: RF,XGBoost,ERT  | exp/cnv/mut  |  Drug-target interaction    |       |      |         |       |  True|        
 |  DeepSynergy   |    exp  |  Drug chemical descriptor    |    DNN             |   DNN    |      |      |   True   |
 |  MatchMaker    |    exp  |  Drug chemical descriptor    |    DNN              |  DNN    |      |      |   False    |
-|  Multitask_DNN |    exp, Cancer/Tissue type|  MACCS ingerprints, SMILES, Drug-target interaction    |     DNN   | DNN     | False | False| False |
+|  Multitask_DNN |    exp, Cancer/Tissue type|  MACCS fingerprints, SMILES, Drug-target interaction    |     DNN   | DNN     | False | False| False |
+|  DeepDDS|    exp |  SMILES   |     GCN   | MLP     | | | False |
 
 ****
 #### Data downloaded
@@ -62,6 +63,7 @@ In detail, the following drug synergy prediction models were implemented.
     for Drug Synergy Prediction. IEEE/ACM Transactions on Computational Biology and Bioinformatics, 2021.](https://ieeexplore-ieee-org.proxy.library.cornell.edu/document/9447196/)
     - [3] [Yejin Kim, Shuyu Zheng, Jing Tang, Wenjin Jim Zheng, Zhao Li, and Xiaoqian Jiang. Anticancer Drug Synergy
     Prediction in Understudied Tissues Using Transfer Learning. Journal of the American Medical Informatics Association, 28(1):42–51, 2021.](https://academic.oup.com/jamia/article/28/1/42/5920819?login=true)
+    - [4] 
 ****
 
 #### Constructing ...
