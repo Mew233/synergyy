@@ -123,12 +123,15 @@ def load_cellline_features(dataset):
 
 def load_drug_features():
     
+    supplier = rdkit.Chem.SDMolSupplier(os.path.join(ROOT_DIR, 'data', 'drug_data','structures.sdf'))
+    molecules = [mol for mol in supplier if mol is not None]
+
     def process_fingerprint():
         # load fingerprint data
         ## column is drug, index is morgan bits
         # Read SDF File
-        supplier = rdkit.Chem.SDMolSupplier(os.path.join(ROOT_DIR, 'data', 'drug_data','structures.sdf'))
-        molecules = [mol for mol in supplier if mol is not None]
+        # supplier = rdkit.Chem.SDMolSupplier(os.path.join(ROOT_DIR, 'data', 'drug_data','structures.sdf'))
+        
 
         fingerprints = dict()
         for mol in molecules:
@@ -159,7 +162,25 @@ def load_drug_features():
         return pd.DataFrame(target_feats)
 
     def process_smiles():
+        # one-hot-encode smiles, similar to fingerprint
+        
         pass
+
+
+    def process_smiles2graph():
+        # r
+        # smiles = pd.read_csv('./data/Drugs/DPIALL_smiles.csv')
+        smilesgraph_dict = dict()
+        for mol in molecules:
+            drugbank_id = mol.GetProp('DATABASE_ID')
+            smiles = mol.GetProp('SMILES')
+            try:
+                smilesgraph_dict[split_it(drugbank_id)] = smile_to_graph(smiles)
+            except AttributeError:
+                pass
+        # np.save('./data/Drugs/drug_feature_graph.npy', drug_dict)
+        return smilesgraph_dict
+
         
     
     save_path = os.path.join(ROOT_DIR, 'data', 'drug_data')
@@ -168,8 +189,12 @@ def load_drug_features():
         data_dicts = {}
         data_dicts['morgan_fingerprint'] = process_fingerprint()
         data_dicts['drug_target'] = process_dpi()
+        data_dicts['smiles2graph'] = process_smiles2graph()
         np.save(save_path, data_dicts)
     else:
         data_dicts = np.load(save_path,allow_pickle=True).item()
 
     return data_dicts
+
+if __name__ == "__main__":
+    load_drug_features()

@@ -14,7 +14,8 @@ from sklearn.model_selection import train_test_split
 from prepare_data import *
 from select_features import *
 from get_model import get_model
-from dataloader import dataloader, k_fold_trainer, evaluator
+from dataloader import dataloader, dataloader_graph, k_fold_trainer, k_fold_trainer_graph, evaluator, evaluator_graph
+import torch_geometric.data
 
 def prepare_data(args):
     _configs_ = configuration_from_json()
@@ -81,13 +82,24 @@ def prepare_data(args):
     print("\ngenerating drug features...")
     drug_mat_dict = {}
     for feat_type in config['drug_omics']:
-        dim = drugFeature_dicts[feat_type].shape[0]
-        temp_X_drug1 = np.zeros((synergy_df.shape[0], dim))
-        temp_X_drug2 = np.zeros((synergy_df.shape[0], dim))
-        for i in tqdm(range(synergy_df.shape[0])):
-            row = synergy_df.iloc[i]
-            temp_X_drug1[i,:] = drugFeature_dicts[feat_type][int(row['drug1'])]
-            temp_X_drug2[i,:] = drugFeature_dicts[feat_type][int(row['drug2'])]
+### 需要修改, append到一个list
+        if feat_type=='smiles2graph':
+            temp_X_drug1, temp_X_drug2 = [], []
+            for i in tqdm(range(synergy_df.shape[0])):
+                row = synergy_df.iloc[i]
+                ## This is graph. append graph object to list
+                temp_X_drug1.append(drugFeature_dicts[feat_type][int(row['drug1'])])
+                temp_X_drug2.append(drugFeature_dicts[feat_type][int(row['drug2'])])
+
+        ## this is valid for tabular features
+        else:
+            dim = drugFeature_dicts[feat_type].shape[0]
+            temp_X_drug1 = np.zeros((synergy_df.shape[0], dim))
+            temp_X_drug2 = np.zeros((synergy_df.shape[0], dim))
+            for i in tqdm(range(synergy_df.shape[0])):
+                row = synergy_df.iloc[i]
+                temp_X_drug1[i,:] = drugFeature_dicts[feat_type][int(row['drug1'])]
+                temp_X_drug2[i,:] = drugFeature_dicts[feat_type][int(row['drug2'])]
 
         drug_mat_dict[feat_type+"_1"] = temp_X_drug1
         drug_mat_dict[feat_type+"_2"] = temp_X_drug2
@@ -115,9 +127,12 @@ def prepare_data(args):
         print("drug features")
         print(list(X_drug.keys()))
         for key, value in X_drug.items():
-            print(key, value.shape)
+            print(key, len(value))
+
     
     Y_score = (synergy_df['score']>args.synergy_thres).astype(int).values
+
+
     return X_cell, X_drug, Y_score
 
 
@@ -228,7 +243,39 @@ def training(X_cell, X_drug, Y, args):
         elif args.train_test_mode == 'train':
             net = k_fold_trainer(train_val_dataset,model,args)
 
-# --------------- audnn --------------- #
+# --------------- deepdds --------------- #
+    elif args.model == 'deepdds_wang':
+        X_cell_trainval, X_cell_test, \
+        X_deepdds_sm_drug1_trainval, X_deepdds_sm_drug1_test,\
+        X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test,\
+        Y_trainval, Y_test \
+        = train_test_split(X_cell, X_drug['smiles2graph_1'],X_drug['smiles2graph_2'], Y, \
+                                test_size=0.2, random_state=42)
+
+
+    
+        # should be compatible with fp_drug, fp_drug2, cell
+        train_val_dataset_drug,train_val_dataset_drug2,test_loader_drug,test_loader_drug2 = dataloader_graph(\
+            X_deepdds_sm_drug1_trainval=X_deepdds_sm_drug1_trainval, X_deepdds_sm_drug1_test=X_deepdds_sm_drug1_test,\
+            X_deepdds_sm_drug2_trainval=X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test=X_deepdds_sm_drug2_test,\
+            X_cell_trainval=X_cell_trainval, X_cell_test=X_cell_test,\
+            Y_trainval=Y_trainval, Y_test=Y_test
+                )
+        
+        # init model
+        model = get_model(args.model)
+
+
+        # load the best model
+        if args.train_test_mode == 'test':
+            net = model.load_state_dict(torch.load('best_model_%s.pth' % args.model))
+        elif args.train_test_mode == 'train':
+            net = k_fold_trainer_graph(train_val_dataset_drug,train_val_dataset_drug2,model,args)
+
+    
+    test_loader = {}
+    test_loader['test_loader_drug'] = test_loader_drug
+    test_loader['test_loader_drug2'] = test_loader_drug2
 
     return net, test_loader
 
@@ -240,6 +287,12 @@ def evaluate(model, test_loader, args):
     if args.model in ['LR','XTBOOST','RF','ERT']:
         actuals, predictions = test_loader['actuals'], model.predict_proba(test_loader['X_test'])[:,1]
 
+    elif args.model == 'deepdds_wang':
+        test_loader_drug = test_loader['test_loader_drug']
+        test_loader_drug2 = test_loader['test_loader_drug2']
+
+        actuals, predictions = evaluator_graph(model,test_loader_drug,test_loader_drug2)
+        
     else:
 
         actuals, predictions = evaluator(model,test_loader)

@@ -2,6 +2,7 @@ from models.baselines import *
 from models.deepsynergy_preuer import *
 from models.multitaskdnn_kim import *
 from models.matchmaker_brahim import *
+from models.deepdds_wang import *
 import argparse
 
 def get_model(model_name,*args):
@@ -23,6 +24,11 @@ def get_model(model_name,*args):
     if model_name is "matchmaker_brahim":
 
         return MatchMaker_Brahim(cell_channels=args[1],drug_channels=args[2],dropout_rate = 0.5)
+    
+    if model_name is "deepdds_wang":
+        ##Looks like a bug
+        return DeepDDS_Wang()
+
 
     # model, encoders =  autoencoder_NN(), autoencoder()
     # if model_name is "autodencoders":
