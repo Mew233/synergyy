@@ -255,7 +255,7 @@ def training(X_cell, X_drug, Y, args):
 
     
         # should be compatible with fp_drug, fp_drug2, cell
-        train_val_dataset_drug,train_val_dataset_drug2,test_loader_drug,test_loader_drug2 = dataloader_graph(\
+        train_val_dataset,test_dataset = dataloader_graph(\
             X_deepdds_sm_drug1_trainval=X_deepdds_sm_drug1_trainval, X_deepdds_sm_drug1_test=X_deepdds_sm_drug1_test,\
             X_deepdds_sm_drug2_trainval=X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test=X_deepdds_sm_drug2_test,\
             X_cell_trainval=X_cell_trainval, X_cell_test=X_cell_test,\
@@ -270,14 +270,10 @@ def training(X_cell, X_drug, Y, args):
         if args.train_test_mode == 'test':
             net = model.load_state_dict(torch.load('best_model_%s.pth' % args.model))
         elif args.train_test_mode == 'train':
-            net = k_fold_trainer_graph(train_val_dataset_drug,train_val_dataset_drug2,model,args)
+            net = k_fold_trainer_graph(train_val_dataset,model,args)
 
     
-    test_loader = {}
-    test_loader['test_loader_drug'] = test_loader_drug
-    test_loader['test_loader_drug2'] = test_loader_drug2
-
-    return net, test_loader
+    return net, test_dataset
 
 
 
@@ -288,10 +284,8 @@ def evaluate(model, test_loader, args):
         actuals, predictions = test_loader['actuals'], model.predict_proba(test_loader['X_test'])[:,1]
 
     elif args.model == 'deepdds_wang':
-        test_loader_drug = test_loader['test_loader_drug']
-        test_loader_drug2 = test_loader['test_loader_drug2']
 
-        actuals, predictions = evaluator_graph(model,test_loader_drug,test_loader_drug2)
+        actuals, predictions = evaluator_graph(model,test_loader)
         
     else:
 

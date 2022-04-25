@@ -14,16 +14,16 @@ def get_model(model_name,*args):
 
     if model_name is "deepsynergy_preuer":
 
-        return Deepsynergy_Preuer(channels=args[1],dropout_rate = 0.5)
+        return Deepsynergy_Preuer(channels=args[0],dropout_rate = 0.5)
 
     if model_name is "multitaskdnn_kim":
 
-        return Multitaskdnn_Kim(cell_channels=args[1],\
-            drug_fp_channels=args[2],drug_tg_channels=args[3],dropout_rate = 0.5)
+        return Multitaskdnn_Kim(cell_channels=args[0],\
+            drug_fp_channels=args[1],drug_tg_channels=args[2],dropout_rate = 0.5)
     
     if model_name is "matchmaker_brahim":
 
-        return MatchMaker_Brahim(cell_channels=args[1],drug_channels=args[2],dropout_rate = 0.5)
+        return MatchMaker_Brahim(cell_channels=args[0],drug_channels=args[1],dropout_rate = 0.5)
     
     if model_name is "deepdds_wang":
         ##Looks like a bug

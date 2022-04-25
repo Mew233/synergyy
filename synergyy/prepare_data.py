@@ -45,7 +45,7 @@ def load_synergy(dataset):
         summary_data = summary_data[['compound0_x','compound0_y','DepMap_ID_x','MEAN_SCORE']].rename(columns={\
             'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID_x':'cell','MEAN_SCORE':'score'})
 
-        return summary_data
+        return summary_data.head(5000)
 
     
     def process_almanac():

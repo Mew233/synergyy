@@ -98,8 +98,9 @@ class DeepDDS_Wang(nn.Module):
         # print('x', x2[0])
 
         # deal cell
-        cell = np.stack(cell, axis=0)
-        cell_vector = self.reduction(torch.FloatTensor(cell))
+        cell = np.stack(cell, axis=1)
+        cell = torch.FloatTensor(cell)
+        cell_vector = self.reduction(cell)
 
         # concat
         xc = torch.cat((x1, x2, cell_vector), 1)
