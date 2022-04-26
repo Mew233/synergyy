@@ -2,12 +2,10 @@
 
 SynergyY is an all-in-one package for drug synergy prediction. This package allows the user to conduct **unbiased** experiments to compare the prediction performance between reviewed methods.  
 
-The user can also freely to include new dataset , and select preferential cell/drug features to train the deep learning model.
+The user can freely include new datasets, and select preferential cell/drug features to train the deep learning model.
 ****
 
 #### Installation
-
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install synergyy.
 
 ```bash
 # Unzip 
@@ -43,14 +41,14 @@ pip install -e .
 |  DeepSynergy   |    exp  |  Drug chemical descriptor    |    DNN             |   DNN    |      |      |   True   |
 |  MatchMaker    |    exp  |  Drug chemical descriptor    |    DNN              |  DNN    |      |      |   False    |
 |  Multitask_DNN |    exp, Cancer/Tissue type|  MACCS fingerprints, SMILES, Drug-target interaction    |     DNN   | DNN     | False | False| False |
-|  DeepDDS|    exp |  SMILES2Graph   |     GCN   | MLP     | | | False |
+| Graph based: DeepDDS|    exp |  SMILES2Graph   |     MLP   |   GC   | | | False |
 
 ****
 #### Data downloaded
 SynergyY used multi-omics datasets. 
 1. DrugComb v1.5 synergy dataset 
 2. CCLE dataset including exp, cnv, mut
-3. Drug-target interaction dataset from DrugComb,  and structures.sdf which  enables fingerprints calculation
+3. Drug-target interaction dataset from DrugComb, and structures.sdf which  enables fingerprints calculation
 ****
 
 #### Models included (on-the-fly)
@@ -63,12 +61,12 @@ In detail, the following drug synergy prediction models were implemented.
     for Drug Synergy Prediction. IEEE/ACM Transactions on Computational Biology and Bioinformatics, 2021.](https://ieeexplore-ieee-org.proxy.library.cornell.edu/document/9447196/)
     - [3] [Yejin Kim, Shuyu Zheng, Jing Tang, Wenjin Jim Zheng, Zhao Li, and Xiaoqian Jiang. Anticancer Drug Synergy
     Prediction in Understudied Tissues Using Transfer Learning. Journal of the American Medical Informatics Association, 28(1):42–51, 2021.](https://academic.oup.com/jamia/article/28/1/42/5920819?login=true)
-    - [4] [Jinxian Wang, Xuejun Liu, Siyuan Shen, Lei Deng, and Hui Liu. DeepDDS: Deep Graph Neural Network with Attention Mechanism to Predict Synergistic Drug Combinations. Briefings in Bioinformatics, 09 2021 (https://academic.oup.com/bib/article/23/1/bbab390/6375262)
+    - [4] [Jinxian Wang, Xuejun Liu, Siyuan Shen, Lei Deng, and Hui Liu. DeepDDS: Deep Graph Neural Network with Attention Mechanism to Predict Synergistic Drug Combinations. Briefings in Bioinformatics, 09 2021.] (https://academic.oup.com/bib/article/23/1/bbab390/6375262)
 ****
 
 #### Constructing ...
-We'll include more models.  
-We'll include Grad-Cam to identify the important genes from the last CNN layer.
+We'll include more deep learning models.
+We'll include Grad-Cam to identify the important genes from the CNN layer.
 ****
 #### License
 [MIT](https://choosealicense.com/licenses/mit/)
