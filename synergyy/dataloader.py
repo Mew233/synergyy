@@ -1,6 +1,7 @@
 """
     Dataloader, customized K-fold trainer & evaluater
 """
+from unittest import TestLoader
 from torch.utils.data import DataLoader
 from itertools import chain
 import torch
@@ -11,9 +12,12 @@ from sklearn.metrics import average_precision_score
 import numpy as np
 import os
 import torch_geometric.data
+from torch_geometric.data import Batch
 from itertools import cycle
 from torch_geometric import data as DATA
 import random
+import pandas as pd
+from torch.utils.data import Dataset,TensorDataset
 
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -75,47 +79,6 @@ def dataloader_graph(*args,**kwargs):
             temp_loader_trainval.append(val)
         elif load_name[-1].endswith('test'):
             temp_loader_test.append(val)
-    # iterate to create the GCNDATA object
-
-    # def processDATA(temp_loader_trainval, drug):
-    #     train_val_dataset = []
-    #     test_dataset = []
-        
-    #     ##combine graph, cell, lable into one torch.geometric.Data
-    #     if drug =='drug1':
-    #         X_deepdds_sm = temp_loader_trainval[0]
-    #     elif drug =='drug2':
-    #         X_deepdds_sm = temp_loader_trainval[1]
-    #     X_cell_trainval = temp_loader_trainval[2]
-    #     Y_trainval = temp_loader_trainval[3]
-    #     Y_trainval = [[i] for i in Y_trainval]
-
-    #     # for i in range(len(X_deepdds_sm)):
-    #     #     labels = Y_trainval[i]
-    #     #     new_cell = X_cell_trainval[i]
-    #     #     X_deepdds_sm[i].cell = new_cell
-    #     #     X_deepdds_sm[i].label = labels
-    #     #     train_val_dataset.append(X_deepdds_sm[i])
-    #     for (object,c,l) in zip(X_deepdds_sm,X_cell_trainval,Y_trainval):
-    #         #__setitem__('c_size', torch.LongTensor([c_size]))
-    #         object.__setitem__('cell', c)
-    #         object.__setitem__('label', l)
-    #         # object.cell = torch.FloatTensor([cell])
-    #         # object.label = torch.Tensor([label])
-    #         train_val_dataset.append(object)
-
-    #     return train_val_dataset
-
-
-
-    # train_val_dataset_drug = processDATA(temp_loader_trainval, drug ='drug1')
-    # train_val_dataset_drug2 = processDATA(temp_loader_trainval, drug ='drug2')
-
-    # test_dataset_drug = processDATA(temp_loader_test, drug ='drug1')
-    # test_dataset_drug2 = processDATA(temp_loader_test, drug ='drug2')
-
-
-
 
 
     return temp_loader_trainval,temp_loader_test
@@ -228,13 +191,21 @@ def k_fold_trainer(dataset,model,args):
 
     return network
 
-def set_seed(seed):
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    random.seed(seed)
+
+
+class MyDataset(TensorDataset):
+    def __init__(self, trainval_df):
+        super(MyDataset, self).__init__()
+        self.df = trainval_df
+        self.df.reset_index(drop=True, inplace=True)  # train_test_split之后，数据集的index混乱，需要reset
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, index):
+        
+        #drug1, drug2, cell, target
+        return (self.df.iloc[index,0], self.df.iloc[index,1], self.df.iloc[index,2], self.df.iloc[index,3])
 
 def k_fold_trainer_graph(temp_loader_trainval,model,args):
 
@@ -268,7 +239,11 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
 
     # K-fold Cross Validation model evaluation
     # for fold, (train_ids, test_ids) in enumerate(skf.split(X,y)):
-    for fold, (train_ids, test_ids) in enumerate(kfold.split(train_val_dataset_drug)):
+    
+    trainval_df = [train_val_dataset_drug,train_val_dataset_drug2,train_val_dataset_cell,train_val_dataset_target]
+    trainval_df = pd.DataFrame(trainval_df).T
+
+    for fold, (train_ids, test_ids) in enumerate(kfold.split(trainval_df)):
         # Print
         print(f'FOLD {fold}')
         print('--------------------------------')
@@ -278,23 +253,16 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
         
         #(Graph) For graph object needed to use torch_geometric.data.DataLoader
         if args.model == 'deepdds_wang':
-            set_seed(fold)
-            trainloader = torch_geometric.data.DataLoader(train_val_dataset_drug, batch_size=256, sampler=train_subsampler)
-            set_seed(fold)
-            trainloader2 = torch_geometric.data.DataLoader(train_val_dataset_drug2, batch_size=256, sampler=train_subsampler)
-            set_seed(fold)
-            trainloader_cell = torch_geometric.data.DataLoader(train_val_dataset_cell, batch_size=256, sampler=train_subsampler)
-            set_seed(fold)
-            trainloader_target = torch_geometric.data.DataLoader(train_val_dataset_target, batch_size=256, sampler=train_subsampler)
-
-            set_seed(fold)
-            valloader = torch_geometric.data.DataLoader(train_val_dataset_drug,batch_size=256, sampler=test_subsampler)
-            set_seed(fold)
-            valloader2 = torch_geometric.data.DataLoader(train_val_dataset_drug2,batch_size=256, sampler=test_subsampler)
-            set_seed(fold)
-            valloader_cell = torch_geometric.data.DataLoader(train_val_dataset_cell,batch_size=256, sampler=test_subsampler)
-            set_seed(fold)
-            valloader_target = torch_geometric.data.DataLoader(train_val_dataset_target,batch_size=256, sampler=test_subsampler)
+            
+            Dataset = MyDataset
+            # self define dataset
+            train_dataset = Dataset(trainval_df)
+            
+            trainloader = torch_geometric.data.DataLoader(train_dataset, batch_size=batch_size,
+                              sampler=train_subsampler)
+            valloader = torch_geometric.data.DataLoader(train_dataset, batch_size=batch_size,
+                              sampler=test_subsampler)
+        
 
         # Init the neural network
         network = model
@@ -308,7 +276,7 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
             current_loss = 0.0
 
             # Iterate over the DataLoader for training data
-            for i, data in enumerate(zip(cycle(trainloader), trainloader2,trainloader_cell,trainloader_target)):
+            for i, data in enumerate(trainloader):
                 data1 = data[0]
                 data2 = data[1]
                 data_cell = data[2]
@@ -316,7 +284,6 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
                 x1, edge_index1, x2, edge_index2, cell, batch1, batch2 \
                     = data1.x, data1.edge_index, data2.x, data2.edge_index, data_cell, data1.batch, data2.batch
 
-                
                 targets = data_target.unsqueeze(1)
                                 
 
@@ -330,9 +297,9 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
                 optimizer.step()
                 # Print statistics
                 current_loss += loss.item()
-                if i % 2000 == 1999:
+                if i % 100 == 99:
                     print('Loss after mini-batch %5d: %.3f' %
-                        (i + 1, current_loss / 2000))
+                        (i + 1, current_loss / 100))
                     current_loss = 0.0
             
             # Process is complete.
@@ -344,7 +311,7 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
         with torch.no_grad():
             predictions, actuals = list(), list()
 
-            for i, data in enumerate(zip(cycle(valloader), valloader2, valloader_cell,valloader_target)):
+            for i, data in enumerate(valloader):
                 data1 = data[0]
                 data2 = data[1]
                 data_cell = data[2]
@@ -429,26 +396,23 @@ def evaluator(model,test_loader):
     return actuals, predictions
 
 def evaluator_graph(model,temp_loader_test):
-# For graph, we should have batch set as 1
+# For graph, the dataloader should be imported from torch geometric
 
     test_dataset_drug = temp_loader_test[0]
     test_dataset_drug2 = temp_loader_test[1]
     test_dataset_cell = temp_loader_test[2]
     test_dataset_target = temp_loader_test[3]
 
-    set_seed(0)
-    test_loader_drug = torch_geometric.data.DataLoader(test_dataset_drug, batch_size=256,shuffle = False)
-    set_seed(0)
-    test_loader_drug2 = torch_geometric.data.DataLoader(test_dataset_drug2, batch_size=256,shuffle = False)
-    set_seed(0)
-    test_loader_cell = torch_geometric.data.DataLoader(test_dataset_cell, batch_size=256,shuffle = False)
-    set_seed(0)
-    test_loader_target = torch_geometric.data.DataLoader(test_dataset_target, batch_size=256,shuffle = False)
+    test_df = [test_dataset_drug,test_dataset_drug2,test_dataset_cell,test_dataset_target]
+    test_df = pd.DataFrame(test_df).T
+
+    test_df = Dataset(test_df)
+            
+    test_loader = torch_geometric.data.DataLoader(test_df, batch_size=256,shuffle = False)
 
     predictions, actuals = list(), list()
 
-
-    for i, data in enumerate(zip(cycle(test_loader_drug), test_loader_drug2,test_loader_cell,test_loader_target)):
+    for i, data in enumerate(test_loader):
         
         data1 = data[0]
         data2 = data[1]
