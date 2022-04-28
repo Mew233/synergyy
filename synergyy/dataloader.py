@@ -84,7 +84,6 @@ def dataloader_graph(*args,**kwargs):
     return temp_loader_trainval,temp_loader_test
 
 
-
 def k_fold_trainer(dataset,model,args):
 
     # Configuration options
@@ -110,13 +109,17 @@ def k_fold_trainer(dataset,model,args):
         train_subsampler = torch.utils.data.SubsetRandomSampler(train_ids)
         test_subsampler = torch.utils.data.SubsetRandomSampler(test_ids)
         
-
-
         trainloader = DataLoader(dataset, batch_size=batch_size, sampler=train_subsampler)
         valloader = DataLoader(dataset,batch_size=batch_size, sampler=test_subsampler)
 
         # Init the neural network
+        
         network = model
+        # init para for each fold
+        for layer in network.modules():
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
+
         # Initialize optimizer
         optimizer = torch.optim.Adam(network.parameters(), lr=1e-4)
 
@@ -171,7 +174,7 @@ def k_fold_trainer(dataset,model,args):
         auc = roc_auc_score(y_true=actuals, y_score=predictions)
 
         # Print accuracy
-        print(f'Accuracy for fold %d: %f' % (fold, auc))
+        print(f'Accuracy for fold %d: %.4f' % (fold, auc))
         print('--------------------------------')
         results[fold] = auc
     
@@ -189,8 +192,10 @@ def k_fold_trainer(dataset,model,args):
         sum += value
     print(f'Average: {sum/len(results.items())}')
 
-    return network
+    #network = model.load_state_dict(torch.load('best_model_%s.pth' % args.model))
+    network_weights = 'best_model_%s.pth' % args.model
 
+    return network_weights
 
 
 class MyDataset(TensorDataset):
@@ -216,7 +221,7 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
 
     # Configuration options
     k_folds = 5
-    num_epochs = 10
+    num_epochs = 50
     batch_size = 256
 
     loss_function = nn.BCELoss()
@@ -266,6 +271,11 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
 
         # Init the neural network
         network = model
+        # init para for each fold
+        for layer in network.modules():
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
+
         # Initialize optimizer
         optimizer = torch.optim.Adam(network.parameters(), lr=1e-4)
 
@@ -363,7 +373,7 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
 
 
 
-def evaluator(model,test_loader):
+def evaluator(model,model_weights,test_loader):
     """_summary_
 
     Args:
@@ -378,6 +388,9 @@ def evaluator(model,test_loader):
     for i, data in enumerate(test_loader, 0):
         # get the inputs; data is a list of [inputs, labels]
         inputs, labels = data[:-1], data[-1]
+
+        model.load_state_dict(torch.load(model_weights))
+
         y_pred = model(inputs)
         y_pred = y_pred.detach().numpy()
         # pick the index of the highest values
@@ -395,17 +408,18 @@ def evaluator(model,test_loader):
 
     return actuals, predictions
 
-def evaluator_graph(model,temp_loader_test):
+def evaluator_graph(model,model_weights,temp_loader_test):
 # For graph, the dataloader should be imported from torch geometric
 
     test_dataset_drug = temp_loader_test[0]
     test_dataset_drug2 = temp_loader_test[1]
-    test_dataset_cell = temp_loader_test[2]
-    test_dataset_target = temp_loader_test[3]
+    test_dataset_cell = temp_loader_test[2].tolist()
+    test_dataset_target = temp_loader_test[3].tolist()
 
     test_df = [test_dataset_drug,test_dataset_drug2,test_dataset_cell,test_dataset_target]
     test_df = pd.DataFrame(test_df).T
 
+    Dataset = MyDataset 
     test_df = Dataset(test_df)
             
     test_loader = torch_geometric.data.DataLoader(test_df, batch_size=256,shuffle = False)
@@ -422,6 +436,7 @@ def evaluator_graph(model,temp_loader_test):
         x1, edge_index1, x2, edge_index2, cell, batch1, batch2 \
             = data1.x, data1.edge_index, data2.x, data2.edge_index, data_cell, data1.batch, data2.batch
 
+        model.load_state_dict(torch.load(model_weights))
 
         y_pred = model(x1, edge_index1, x2, edge_index2, cell, batch1, batch2)
         y_pred = y_pred.detach().numpy()

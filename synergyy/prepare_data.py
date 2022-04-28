@@ -56,7 +56,6 @@ def load_synergy(dataset):
     return data
 
 
-
 def load_cellline_features(dataset):
     '''
     Load cell line features. load all data in the specified dataset and revise into the same format.

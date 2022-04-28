@@ -7,15 +7,18 @@ import torch
 import torch.nn as nn
 
 from tqdm import tqdm
+import joblib
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import average_precision_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold
+from sklearn.model_selection import cross_val_score, cross_validate
 
 from prepare_data import *
 from select_features import *
 from get_model import get_model
 from dataloader import dataloader, dataloader_graph, k_fold_trainer, k_fold_trainer_graph, evaluator, evaluator_graph
 import torch_geometric.data
+
 
 def prepare_data(args):
     _configs_ = configuration_from_json()
@@ -135,28 +138,39 @@ def prepare_data(args):
 
     return X_cell, X_drug, Y_score
 
-
-def training(X_cell, X_drug, Y, args):
-# --------------- baseline  --------------- #
+def training_baselines(X_cell, X_drug, Y, args):
+    # --------------- baseline  --------------- #
     if args.model in ['LR','XTBOOST','RF','ERT']:
         X = np.concatenate([X_cell,X_drug], axis=1)
         X_trainval, X_test, Y_trainval, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+        
         # init model
         model = get_model(args.model)
-        # machine learning
+        # returned for evaluation
         test_loader = {}
         test_loader['X_test'] = X_test
         test_loader['actuals'] = Y_test
 
-        # load the best model
-        if (args.train_test_mode == 'test'):
-            net = model.load_state_dict(torch.load('best_model_%s.pth' % args.model))
-        else:
-            net = model.fit(X_trainval,Y_trainval)
+        # prepare the cross-validation procedure
+        kfold = KFold(n_splits=5, random_state=42, shuffle=True)
 
+        # evaluate model
+        cv_results = cross_validate(model, X_trainval, Y_trainval, cv=kfold, scoring='roc_auc', return_estimator=True)
+        scores = cv_results['test_score']
+        rfc_fit = cv_results['estimator']
+        # select the best
+        rfc_fit = rfc_fit[np.argmax(scores)]
+        # save it
+        save_path = os.path.join(ROOT_DIR, 'best_model_%s.pth' % args.model)
+        joblib.dump(rfc_fit,save_path)
+
+    return rfc_fit, scores, test_loader
+
+
+def training(X_cell, X_drug, Y, args):
 
 # --------------- multitask dnn --------------- #
-    elif args.model == 'multitaskdnn_kim':
+    if args.model == 'multitaskdnn_kim':
         
         X_cell_trainval, X_cell_test, \
         X_fp_drug1_trainval, X_fp_drug1_test,\
@@ -188,9 +202,9 @@ def training(X_cell, X_drug, Y, args):
 
         # load the best model
         if args.train_test_mode == 'test':
-            net = model.load_state_dict(torch.load('best_model_%s.pth' % args.model))
+            net_weights = 'best_model_%s.pth' % args.model
         elif args.train_test_mode == 'train':
-            net = k_fold_trainer(train_val_dataset,model,args)
+            net_weights = k_fold_trainer(train_val_dataset,model,args)
    
 # --------------- deep synergy --------------- #
     elif args.model == 'deepsynergy_preuer':
@@ -209,9 +223,9 @@ def training(X_cell, X_drug, Y, args):
 
         # load the best model
         if args.train_test_mode == 'test':
-            net = model.load_state_dict(torch.load('best_model_%s.pth' % args.model))
+            net_weights = 'best_model_%s.pth' % args.model
         elif args.train_test_mode == 'train':
-            net = k_fold_trainer(train_val_dataset,model,args)
+            net_weights = k_fold_trainer(train_val_dataset,model,args)
    
 # --------------- matchmaker --------------- #
     elif args.model == 'matchmaker_brahim':
@@ -239,9 +253,9 @@ def training(X_cell, X_drug, Y, args):
 
         # load the best model
         if args.train_test_mode == 'test':
-            net = model.load_state_dict(torch.load('best_model_%s.pth' % args.model))
+            net_weights = 'best_model_%s.pth' % args.model
         elif args.train_test_mode == 'train':
-            net = k_fold_trainer(train_val_dataset,model,args)
+            net_weights = k_fold_trainer(train_val_dataset,model,args)
 
 # --------------- deepdds --------------- #
     elif args.model == 'deepdds_wang':
@@ -255,7 +269,7 @@ def training(X_cell, X_drug, Y, args):
 
     
         # should be compatible with fp_drug, fp_drug2, cell
-        train_val_dataset,test_dataset = dataloader_graph(\
+        train_val_dataset,test_loader = dataloader_graph(\
             X_deepdds_sm_drug1_trainval=X_deepdds_sm_drug1_trainval, X_deepdds_sm_drug1_test=X_deepdds_sm_drug1_test,\
             X_deepdds_sm_drug2_trainval=X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test=X_deepdds_sm_drug2_test,\
             X_cell_trainval=X_cell_trainval, X_cell_test=X_cell_test,\
@@ -268,28 +282,29 @@ def training(X_cell, X_drug, Y, args):
 
         # load the best model
         if args.train_test_mode == 'test':
-            net = model.load_state_dict(torch.load('best_model_%s.pth' % args.model))
+            net_weights = 'best_model_%s.pth' % args.model
         elif args.train_test_mode == 'train':
-            net = k_fold_trainer_graph(train_val_dataset,model,args)
+            net_weights = k_fold_trainer_graph(train_val_dataset,model,args)
 
     
-    return net, test_dataset
+    return model, net_weights, test_loader
 
 
 
 
-def evaluate(model, test_loader, args):
-    
+def evaluate(model, model_weights, test_loader, args):
+
     if args.model in ['LR','XTBOOST','RF','ERT']:
+
         actuals, predictions = test_loader['actuals'], model.predict_proba(test_loader['X_test'])[:,1]
 
     elif args.model == 'deepdds_wang':
 
-        actuals, predictions = evaluator_graph(model,test_loader)
+        actuals, predictions = evaluator_graph(model, model_weights,test_loader)
         
     else:
 
-        actuals, predictions = evaluator(model,test_loader)
+        actuals, predictions = evaluator(model, model_weights,test_loader)
 
     auc = roc_auc_score(y_true=actuals, y_score=predictions)
     ap = average_precision_score(y_true=actuals, y_score=predictions)

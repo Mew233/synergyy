@@ -18,7 +18,7 @@ class baseline():
         return model
 
     def LR(self):
-        model = LogisticRegression(solver='lbfgs', max_iter=1000)
+        model = LogisticRegression(solver='lbfgs')
         return model
 
 
