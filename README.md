@@ -40,8 +40,13 @@ pip install -e .
 | ML approaches: RF,XGBoost,ERT  | exp/cnv/mut  |  Drug-target interaction    |       |      |         |       |  True|        
 |  DeepSynergy   |    exp  |  Drug chemical descriptor    |    DNN             |   DNN    |      |      |   True   |
 |  MatchMaker    |    exp  |  Drug chemical descriptor    |    DNN              |  DNN    |      |      |   False    |
+<<<<<<< HEAD
 |  Multitask_DNN |    exp  |  Morgan or MACCS fingerprints, Drug-target interaction    |     DNN   | DNN     |  | False| False |
 | Graph based: DeepDDS|    exp |  SMILES2Graph   |     MLP   |   GC   | | | False |
+=======
+|  Multitask_DNN |    exp, Cancer/Tissue type|  MACCS fingerprints, SMILES, Drug-target interaction    |     DNN   | DNN     | False | False| False |
+| Graph based: DeepDDS|    exp |  SMILES2Graph   |     MLP   |   GCN   | | | False |
+>>>>>>> 5e3c04961e41e85aed1b1d31bd8031f258b183b3
 
 ****
 #### Data downloaded
@@ -61,11 +66,11 @@ In detail, the following drug synergy prediction models were implemented.
     for Drug Synergy Prediction. IEEE/ACM Transactions on Computational Biology and Bioinformatics, 2021.](https://ieeexplore-ieee-org.proxy.library.cornell.edu/document/9447196/)
     - [3] [Yejin Kim, Shuyu Zheng, Jing Tang, Wenjin Jim Zheng, Zhao Li, and Xiaoqian Jiang. Anticancer Drug Synergy
     Prediction in Understudied Tissues Using Transfer Learning. Journal of the American Medical Informatics Association, 28(1):42–51, 2021.](https://academic.oup.com/jamia/article/28/1/42/5920819?login=true)
-    - [4] [Jinxian Wang, Xuejun Liu, Siyuan Shen, Lei Deng, and Hui Liu. DeepDDS: Deep Graph Neural Network with Attention Mechanism to Predict Synergistic Drug Combinations. Briefings in Bioinformatics, 09 2021.] (https://academic.oup.com/bib/article/23/1/bbab390/6375262)
+    - [4] [Jinxian Wang, Xuejun Liu, Siyuan Shen, Lei Deng, and Hui Liu. DeepDDS: Deep Graph Neural Network with Attention Mechanism to Predict Synergistic Drug Combinations. Briefings in Bioinformatics, 09 2021](https://academic.oup.com/bib/article/23/1/bbab390/6375262)
 ****
 
 #### Constructing ...
-We'll include more deep learning models.
+We'll include more deep learning models.  
 We'll include Grad-Cam to identify the important genes from the CNN layer.
 ****
 #### License
