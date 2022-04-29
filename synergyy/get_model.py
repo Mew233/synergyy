@@ -8,7 +8,7 @@ import argparse
 def get_model(model_name,*args):
 
     base_model = baseline()
-    if model_name in ['LR','XTBOOST','RF','ERT']:
+    if model_name in ['LR','XGBOOST','RF','ERT']:
 
         return getattr(base_model, model_name)()
 

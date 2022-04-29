@@ -40,13 +40,8 @@ pip install -e .
 | ML approaches: RF,XGBoost,ERT  | exp/cnv/mut  |  Drug-target interaction    |       |      |         |       |  True|        
 |  DeepSynergy   |    exp  |  Drug chemical descriptor    |    DNN             |   DNN    |      |      |   True   |
 |  MatchMaker    |    exp  |  Drug chemical descriptor    |    DNN              |  DNN    |      |      |   False    |
-<<<<<<< HEAD
 |  Multitask_DNN |    exp  |  Morgan or MACCS fingerprints, Drug-target interaction    |     DNN   | DNN     |  | False| False |
-| Graph based: DeepDDS|    exp |  SMILES2Graph   |     MLP   |   GC   | | | False |
-=======
-|  Multitask_DNN |    exp, Cancer/Tissue type|  MACCS fingerprints, SMILES, Drug-target interaction    |     DNN   | DNN     | False | False| False |
 | Graph based: DeepDDS|    exp |  SMILES2Graph   |     MLP   |   GCN   | | | False |
->>>>>>> 5e3c04961e41e85aed1b1d31bd8031f258b183b3
 
 ****
 #### Data downloaded

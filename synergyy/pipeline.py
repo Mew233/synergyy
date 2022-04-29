@@ -8,6 +8,7 @@ import torch.nn as nn
 
 from tqdm import tqdm
 import joblib
+from joblib import dump, load
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import average_precision_score
 from sklearn.model_selection import train_test_split, KFold
@@ -140,7 +141,7 @@ def prepare_data(args):
 
 def training_baselines(X_cell, X_drug, Y, args):
     # --------------- baseline  --------------- #
-    if args.model in ['LR','XTBOOST','RF','ERT']:
+    if args.model in ['LR','XGBOOST','RF','ERT']:
         X = np.concatenate([X_cell,X_drug], axis=1)
         X_trainval, X_test, Y_trainval, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
         
@@ -153,16 +154,23 @@ def training_baselines(X_cell, X_drug, Y, args):
 
         # prepare the cross-validation procedure
         kfold = KFold(n_splits=5, random_state=42, shuffle=True)
-
-        # evaluate model
-        cv_results = cross_validate(model, X_trainval, Y_trainval, cv=kfold, scoring='roc_auc', return_estimator=True)
-        scores = cv_results['test_score']
-        rfc_fit = cv_results['estimator']
-        # select the best
-        rfc_fit = rfc_fit[np.argmax(scores)]
-        # save it
-        save_path = os.path.join(ROOT_DIR, 'best_model_%s.pth' % args.model)
-        joblib.dump(rfc_fit,save_path)
+        
+        # load the best model
+        if args.train_test_mode == 'test':
+            rfc_fit = 'best_model_%s.pth' % args.model
+            scores = 0
+        elif args.train_test_mode == 'train':
+            # evaluate model
+            cv_results = cross_validate(model, X_trainval, Y_trainval, cv=kfold, scoring='roc_auc', return_estimator=True)
+            scores = cv_results['test_score']
+            rfc_fit = cv_results['estimator']
+            # select the best
+            rfc_fit = rfc_fit[np.argmax(scores)]
+            # save it
+            save_path = os.path.join(ROOT_DIR, 'best_model_%s.pth' % args.model)
+            joblib.dump(rfc_fit,save_path)
+            # should return address at the end
+            rfc_fit = 'best_model_%s.pth' % args.model
 
     return rfc_fit, scores, test_loader
 
@@ -294,8 +302,9 @@ def training(X_cell, X_drug, Y, args):
 
 def evaluate(model, model_weights, test_loader, args):
 
-    if args.model in ['LR','XTBOOST','RF','ERT']:
-
+    if args.model in ['LR','XGBOOST','RF','ERT']:
+    
+        model = load(model)
         actuals, predictions = test_loader['actuals'], model.predict_proba(test_loader['X_test'])[:,1]
 
     elif args.model == 'deepdds_wang':
