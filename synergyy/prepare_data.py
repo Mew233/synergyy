@@ -108,17 +108,36 @@ def load_cellline_features(dataset):
             data_dicts = {}
             for file_type in ['exp', 'cn', 'mut']:
                 data_dicts[ file_type ] = load_file(file_type)
+            # load GNN_cell
+                gnn_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE')
+                gnn_path = os.path.join(gnn_path, 'cell_feature_cn_std.npy')
+                cell_dict = np.load(gnn_path,allow_pickle=True).item()
+                data_dicts['GNN_cell'] = cell_dict
+
             np.save(save_path, data_dicts)
         else:
             data_dicts = np.load(save_path,allow_pickle=True).item()
+            # load GNN_cell
+            gnn_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE')
+            gnn_path = os.path.join(gnn_path, 'cell_feature_cn_std.npy')
+            cell_dict = np.load(gnn_path,allow_pickle=True).item()
+            data_dicts['GNN_cell'] = cell_dict
+            
+        edge_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE')
+        edge_path = os.path.join(edge_path, 'edge_index_PPI_0.95.npy')
+        edge_index = np.load(edge_path)
+        #for key, value in a_dict.items()
+        for key, value in data_dicts['GNN_cell'].items():
+            #value should be a data object
+            value.edge_index = torch.tensor(edge_index, dtype=torch.long)
 
         return data_dicts
-
 
     data = locals()[function_mapping[dataset]]()
     return data
 
 
+    
 
 def load_drug_features():
     
@@ -180,6 +199,20 @@ def load_drug_features():
         # np.save('./data/Drugs/drug_feature_graph.npy', drug_dict)
         return smilesgraph_dict
 
+    #----------------For TGSynergy-------------------------------   
+    def process_smiles2graph_TGSynergy():
+        # r
+        # smiles = pd.read_csv('./data/Drugs/DPIALL_smiles.csv')
+        smilesgraph_dict = dict()
+        for mol in molecules:
+            drugbank_id = mol.GetProp('DATABASE_ID')
+            smiles = mol.GetProp('SMILES')
+            try:
+                smilesgraph_dict[split_it(drugbank_id)] = smiles2graph(smiles)
+            except AttributeError:
+                pass
+        # np.save('./data/Drugs/drug_feature_graph.npy', drug_dict)
+        return smilesgraph_dict
         
     
     save_path = os.path.join(ROOT_DIR, 'data', 'drug_data')
@@ -189,6 +222,7 @@ def load_drug_features():
         data_dicts['morgan_fingerprint'] = process_fingerprint()
         data_dicts['drug_target'] = process_dpi()
         data_dicts['smiles2graph'] = process_smiles2graph()
+        data_dicts['smiles2graph_TGSynergy'] = process_smiles2graph_TGSynergy()
         np.save(save_path, data_dicts)
     else:
         data_dicts = np.load(save_path,allow_pickle=True).item()
@@ -197,3 +231,4 @@ def load_drug_features():
 
 if __name__ == "__main__":
     load_drug_features()
+    # process_GNNCell()

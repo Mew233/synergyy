@@ -371,7 +371,153 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
 
     return network
 
+def k_fold_trainer_graph_TGSynergy(temp_loader_trainval,model,args):
 
+    train_val_dataset_drug = temp_loader_trainval[0]
+    train_val_dataset_drug2 = temp_loader_trainval[1]
+    train_val_dataset_cell = temp_loader_trainval[2]
+    train_val_dataset_target = temp_loader_trainval[3].tolist()
+
+    # Configuration options
+    k_folds = 5
+    num_epochs = 50
+    batch_size = 256
+
+    loss_function = nn.BCELoss()
+    # For fold results
+    results = {}
+
+    kfold = KFold(n_splits=k_folds, random_state=42, shuffle=True)
+
+    # Start print
+    print('--------------------------------')
+
+    # K-fold Cross Validation model evaluation
+    # for fold, (train_ids, test_ids) in enumerate(skf.split(X,y)):
+    
+    trainval_df = [train_val_dataset_drug,train_val_dataset_drug2,train_val_dataset_cell,train_val_dataset_target]
+    trainval_df = pd.DataFrame(trainval_df).T
+
+    for fold, (train_ids, test_ids) in enumerate(kfold.split(trainval_df)):
+        # Print
+        print(f'FOLD {fold}')
+        print('--------------------------------')
+        # Sample elements randomly from a given list of ids, no replacement.
+        train_subsampler = torch.utils.data.SubsetRandomSampler(train_ids)
+        test_subsampler = torch.utils.data.SubsetRandomSampler(test_ids)
+        
+        #(Graph) For graph object needed to use torch_geometric.data.DataLoader
+        if args.model == 'TGSynergy':
+            
+            Dataset = MyDataset
+            # self define dataset
+            train_dataset = Dataset(trainval_df)
+            
+            trainloader = torch_geometric.data.DataLoader(train_dataset, batch_size=batch_size,
+                              sampler=train_subsampler)
+            valloader = torch_geometric.data.DataLoader(train_dataset, batch_size=batch_size,
+                              sampler=test_subsampler)
+        
+
+        # Init the neural network
+        network = model
+        # init para for each fold
+        for layer in network.modules():
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
+
+        # Initialize optimizer
+        optimizer = torch.optim.Adam(network.parameters(), lr=1e-4)
+
+        for epoch in range(0, num_epochs):
+
+            print(f'Starting epoch {epoch+1}')
+            # Set current loss value
+            current_loss = 0.0
+
+            # Iterate over the DataLoader for training data
+            for i, data in enumerate(trainloader):
+                data1 = data[0]
+                data2 = data[1]
+                data_cell = data[2]
+                data_target = data[3]
+                drug, drug2, cell = data1, data2, data_cell
+                
+                targets = data_target.unsqueeze(1)
+                                
+
+                # Zero the gradients
+                optimizer.zero_grad()
+                # forward + backward + optimize
+                outputs = network(drug, drug2, cell)
+
+                loss = loss_function(outputs, targets.to(torch.float32))
+                loss.backward()
+                optimizer.step()
+                # Print statistics
+                current_loss += loss.item()
+                if i % 100 == 99:
+                    print('Loss after mini-batch %5d: %.3f' %
+                        (i + 1, current_loss / 100))
+                    current_loss = 0.0
+            
+            # Process is complete.
+            # print('Training process has finished.')
+
+            # print('Starting validation')
+
+        # Evaluation for this fold
+        with torch.no_grad():
+            predictions, actuals = list(), list()
+
+            for i, data in enumerate(valloader):
+                data1 = data[0]
+                data2 = data[1]
+                data_cell = data[2]
+                data_target = data[3]
+                drug, drug2, cell = data1, data2, data_cell
+
+                targets = data_target
+
+                # forward + backward + optimize
+                outputs = network(drug, drug2, cell)
+                outputs = outputs.squeeze(1)
+                outputs = outputs.detach().numpy()
+
+                # actual output
+                actual = targets.numpy()
+                actual = actual.reshape(len(actual), 1)
+                # store the values in respective lists
+                predictions.append(list(outputs))
+                actuals.append(list(actual))
+
+        actuals = [val for sublist in np.vstack(list(chain(*actuals))) for val in sublist]
+        predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
+        try:
+            auc = roc_auc_score(y_true=actuals, y_score=predictions)
+        except ValueError:
+            auc = 0
+
+        # Print accuracy
+        print(f'Accuracy for fold %d: %f' % (fold, auc))
+        print('--------------------------------')
+        results[fold] = auc
+    
+            # Saving the best model
+        if results[fold] >= max(results.values()):
+            save_path = os.path.join(ROOT_DIR, 'best_model_%s.pth' % args.model)
+            torch.save(network.state_dict(), save_path)
+
+    # Print fold results
+    print(f'K-FOLD CROSS VALIDATION RESULTS FOR {k_folds} FOLDS')
+    print('--------------------------------')
+    sum = 0.0
+    for key, value in results.items():
+        print(f'Fold {key}: {value}')
+        sum += value
+    print(f'Average: {sum/len(results.items())}')
+
+    return network
 
 def evaluator(model,model_weights,test_loader):
     """_summary_

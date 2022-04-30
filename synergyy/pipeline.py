@@ -17,7 +17,8 @@ from sklearn.model_selection import cross_val_score, cross_validate
 from prepare_data import *
 from select_features import *
 from get_model import get_model
-from dataloader import dataloader, dataloader_graph, k_fold_trainer, k_fold_trainer_graph, evaluator, evaluator_graph
+from dataloader import dataloader, dataloader_graph, k_fold_trainer, k_fold_trainer_graph, evaluator, evaluator_graph,\
+    k_fold_trainer_graph_TGSynergy
 import torch_geometric.data
 
 
@@ -43,9 +44,11 @@ def prepare_data(args):
 
     # Cleaning synergy data. Cells not having top variance genes are removed
     ## Cell feats: multi-omics dataset / get_cell select top genes by variance or kegg pathway
-
-    cell_feats, selected_cells = get_cell(cellFeatures_dicts, cellset, config['cell_omics'], \
-        config['cell_filtered_by'], config['get_cellfeature_concated'])
+    if args.cell_omics == 'exp':
+        cell_feats, selected_cells = get_cell(cellFeatures_dicts, cellset, config['cell_omics'], \
+            config['cell_filtered_by'], config['get_cellfeature_concated'])
+    elif args.cell_omics[0] == 'GNN_cell':
+        cell_feats, selected_cells = cellFeatures_dicts, get_GNNCell()
 
     print("cell line features constructed")
     synergy_df = synergy_df[(synergy_df['drug1'].isin(selected_drugs))\
@@ -67,12 +70,22 @@ def prepare_data(args):
     else:
         X_cell = {}
         for feat_type in config['cell_omics']:
-            print(feat_type, cell_feats[feat_type].shape[0])
-            temp_cell = np.zeros((synergy_df.shape[0], cell_feats[feat_type].shape[0]))
-            for i in tqdm(range(synergy_df.shape[0])):
-                row = synergy_df.iloc[i]
-                temp_cell[i,:] = cell_feats[feat_type][row['cell']].values
-            X_cell[feat_type] = temp_cell
+        ### 需要修改, append到一个list
+            if feat_type=='GNN_cell':
+                temp_X_cell = []
+                for i in tqdm(range(synergy_df.shape[0])):
+                    row = synergy_df.iloc[i]
+                    ## This is graph. append graph object to list
+                    temp_X_cell.append(cell_feats[feat_type][row['cell']])
+                X_cell[feat_type] = temp_X_cell
+
+            else:
+                print(feat_type, cell_feats[feat_type].shape[0])
+                temp_cell = np.zeros((synergy_df.shape[0], cell_feats[feat_type].shape[0]))
+                for i in tqdm(range(synergy_df.shape[0])):
+                    row = synergy_df.iloc[i]
+                    temp_cell[i,:] = cell_feats[feat_type][row['cell']].values
+                X_cell[feat_type] = temp_cell
     
 
     if config['get_cellfeature_concated'] == True:
@@ -87,7 +100,7 @@ def prepare_data(args):
     drug_mat_dict = {}
     for feat_type in config['drug_omics']:
 ### 需要修改, append到一个list
-        if feat_type=='smiles2graph':
+        if feat_type=='smiles2graph' or 'smiles2graph_TGSynergy':
             temp_X_drug1, temp_X_drug2 = [], []
             for i in tqdm(range(synergy_df.shape[0])):
                 row = synergy_df.iloc[i]
@@ -294,10 +307,38 @@ def training(X_cell, X_drug, Y, args):
         elif args.train_test_mode == 'train':
             net_weights = k_fold_trainer_graph(train_val_dataset,model,args)
 
+
+# --------------- TGSynergy --------------- #
+    elif args.model == 'TGSynergy':
+        X_cell_trainval, X_cell_test, \
+        X_deepdds_sm_drug1_trainval, X_deepdds_sm_drug1_test,\
+        X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test,\
+        Y_trainval, Y_test \
+        = train_test_split(X_cell['GNN_cell'], X_drug['smiles2graph_TGSynergy_1'],X_drug['smiles2graph_TGSynergy_2'], Y, \
+                                test_size=0.2, random_state=42)
+
+
+    #     # should be compatible with fp_drug, fp_drug2, cell
+        train_val_dataset,test_loader = dataloader_graph(\
+            X_deepdds_sm_drug1_trainval=X_deepdds_sm_drug1_trainval, X_deepdds_sm_drug1_test=X_deepdds_sm_drug1_test,\
+            X_deepdds_sm_drug2_trainval=X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test=X_deepdds_sm_drug2_test,\
+            X_cell_trainval=X_cell_trainval, X_cell_test=X_cell_test,\
+            Y_trainval=Y_trainval, Y_test=Y_test
+                )
+    
+    # init model
+        save_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','cluster_predefine_PPI_0.95.npy')
+        cluster_predefine = np.load(save_path, allow_pickle=True).item()
+        cluster_predefine = {i: j for i, j in cluster_predefine.items()}
+        model = get_model(args.model,cluster_predefine)
+
+    # load the best model
+        if args.train_test_mode == 'test':
+            net_weights = 'best_model_%s.pth' % args.model
+        elif args.train_test_mode == 'train':
+            net_weights = k_fold_trainer_graph_TGSynergy(train_val_dataset,model,args)
     
     return model, net_weights, test_loader
-
-
 
 
 def evaluate(model, model_weights, test_loader, args):
@@ -307,7 +348,7 @@ def evaluate(model, model_weights, test_loader, args):
         model = load(model)
         actuals, predictions = test_loader['actuals'], model.predict_proba(test_loader['X_test'])[:,1]
 
-    elif args.model == 'deepdds_wang':
+    elif args.model in ['deepdds_wang','TGSynergy']:
 
         actuals, predictions = evaluator_graph(model, model_weights,test_loader)
         

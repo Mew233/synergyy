@@ -1,6 +1,4 @@
 import argparse
-
-from jinja2 import pass_eval_context
 from prepare_data import *
 from select_features import *
 from pipeline import *
@@ -20,26 +18,27 @@ def arg_parse():
                         help='maximum number of epochs (default: 50)')
     parser.add_argument('--train_test_mode', type=str, default='train',
                         help='train or test')
-    parser.add_argument('--model', type=str, default='LR',
+    parser.add_argument('--model', type=str, default='TGSynergy',
                         help='import model (default: deepsynergy_preuer)')
                         #options are 'LR','XGBOOST','RF','ERT','deepsynergy_preuer','multitaskdnn_kim',
-                        # 'matchmaker_brahim','deepdds_wang')
+                        # 'matchmaker_brahim','deepdds_wang','TGSynergy)
 
 # --------------- Parse configuration  --------------- #
 
     parser.add_argument('--synergy_df', type=str, default='DrugComb')
-    parser.add_argument('--drug_omics', nargs="+", default=['drug_target'],
-                        required=False, help='drug_target/morgan_fingerprint/smiles2graph')    
-    parser.add_argument('--cell_df', type=str, default='CCLE')
-    parser.add_argument('--cell_omics', nargs="+", default=['exp'],
-                        required=False, help='"exp","cn","mut"')
-    parser.add_argument('--cell_filtered_by', type=str, default='variance',
+    parser.add_argument('--drug_omics', nargs="+", default=['smiles2graph_TGSynergy'],
+                        required=False, help='drug_target/morgan_fingerprint/smiles2graph/smiles2graph_TGSynergy')    
+    parser.add_argument('--cell_df', type=str, default='CCLE',
+                        required=False,help='CCLE')
+    parser.add_argument('--cell_omics', nargs="+", default=['GNN_cell'],
+                        required=False, help='"exp","cn","mut","GNN_cell')
+    parser.add_argument('--cell_filtered_by', type=str, default='STRING',
                         help='top genes selected by variance or STRING graph')
-    parser.add_argument('--get_cellfeature_concated', type=bool, default=True,
+    parser.add_argument('--get_cellfeature_concated', type=bool, default=False,
                         required=False, help='')
-    parser.add_argument('--get_drugfeature_concated', type=bool, default=True,
+    parser.add_argument('--get_drugfeature_concated', type=bool, default=False,
                         required=False, help='if concat, numpy array')
-    parser.add_argument('--get_drugs_summed', type=bool, default=True,
+    parser.add_argument('--get_drugs_summed', type=bool, default=False,
                         required=False, help='drug1+drug2 if True, else return dict')
 
     return parser.parse_args()

@@ -14,6 +14,12 @@ def get_drug(original_list):
 
     return selected_drugs
 
+def get_GNNCell():
+    targets = np.load(os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','cell_feature_cn_std.npy'),\
+        allow_pickle=True).item()
+    selected_cells = list(targets.keys())
+    return selected_cells
+
 
 def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, matrix=False):
     
@@ -26,14 +32,6 @@ def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, m
         var_df = temp.var(axis=1)
         selected_genes = list(var_df.sort_values(ascending=False).iloc[:1000].index)
         
-        return selected_genes
-
-    def filter_by_706_genes():
-        #STRING GRAPH > 0.95
-        kegg_gene_list = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'pathway_data','kegg_gene_list.csv'))
-        # cancer pathway: hsa05200
-        # selected_genes = kegg_gene_list[kegg_gene_list['pathway']=="hsa05200"]['eg'].values.tolist()
-        pass
         return selected_genes
 
     # select genes based on criterion (variance or STRING)
