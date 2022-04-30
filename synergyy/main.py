@@ -1,9 +1,10 @@
+import os
+os.environ["OMP_NUM_THREADS"] = "4"
 import argparse
 from prepare_data import *
 from select_features import *
 from pipeline import *
-import os
-os.environ["OMP_NUM_THREADS"] = "4"
+
 
 def arg_parse():
     parser = argparse.ArgumentParser()
@@ -35,7 +36,7 @@ def arg_parse():
     parser.add_argument('--cell_filtered_by', type=str, default='STRING',
                         help='top genes selected by variance or STRING graph')
     parser.add_argument('--get_cellfeature_concated', type=bool, default=False,
-                        required=False, help='')
+                        required=False)
     parser.add_argument('--get_drugfeature_concated', type=bool, default=False,
                         required=False, help='if concat, numpy array')
     parser.add_argument('--get_drugs_summed', type=bool, default=False,

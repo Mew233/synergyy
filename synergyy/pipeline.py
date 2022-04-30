@@ -48,7 +48,10 @@ def prepare_data(args):
         cell_feats, selected_cells = get_cell(cellFeatures_dicts, cellset, config['cell_omics'], \
             config['cell_filtered_by'], config['get_cellfeature_concated'])
     elif args.cell_omics[0] == 'GNN_cell':
-        cell_feats, selected_cells = cellFeatures_dicts, get_GNNCell()
+        #这里load了更多的cell
+        # cell_feats, selected_cells = cellFeatures_dicts, get_GNNCell()
+        #为了与其他模型保持一致, 这里选择的cell只有1000个基因map到的
+        cell_feats, selected_cells = cellFeatures_dicts, get_GNNCell(cellFeatures_dicts, cellset)
 
     print("cell line features constructed")
     synergy_df = synergy_df[(synergy_df['drug1'].isin(selected_drugs))\

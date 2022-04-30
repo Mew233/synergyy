@@ -14,10 +14,17 @@ def get_drug(original_list):
 
     return selected_drugs
 
-def get_GNNCell():
-    targets = np.load(os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','cell_feature_cn_std.npy'),\
-        allow_pickle=True).item()
-    selected_cells = list(targets.keys())
+def get_GNNCell(cellFeatures_dicts, cellset):
+    # targets = np.load(os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','cell_feature_cn_std.npy'),\
+    #     allow_pickle=True).item()
+    # selected_cells = list(targets.keys())
+
+    temp = cellFeatures_dicts['exp']
+    var_df = temp.var(axis=1)
+    selected_genes = list(var_df.sort_values(ascending=False).iloc[:1000].index)
+
+    selected_cells = list(set(cellset) & set(list(temp.columns)))
+
     return selected_cells
 
 
