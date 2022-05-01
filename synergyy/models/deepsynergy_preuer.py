@@ -13,15 +13,16 @@ class Deepsynergy_Preuer(nn.Module):
         super(Deepsynergy_Preuer, self).__init__()
 
         self.NN = nn.Sequential(
-            nn.Linear(channels, 512),
-            nn.BatchNorm1d(512),
+            nn.Linear(channels, 32),
+           #nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(32, 32),
+            #nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(32, 32),
             nn.ReLU(),
             nn.Dropout(p=dropout_rate),
-            nn.Linear(512, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(p=dropout_rate),
-            nn.Linear(512, 1),
+            nn.Linear(32, 1),
             nn.Sigmoid(),
         )
 

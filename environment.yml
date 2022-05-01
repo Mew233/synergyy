@@ -82,11 +82,11 @@ dependencies:
     - scipy==1.7.3
     - threadpoolctl==3.1.0
     - torch==1.10.2
-   - torch-cluster==1.5.9
-   - torch-geometric==2.0.3
-   - torch-scatter==2.0.9
-   - torch-sparse==0.6.12
-   - torch-spline-conv==1.2.1
+    - torch-cluster==1.5.9
+    - torch-geometric==2.0.3
+    - torch-scatter==2.0.9
+    - torch-sparse==0.6.12
+    - torch-spline-conv==1.2.1
     - tqdm==4.64.0
     - typing-extensions==4.2.0
     - urllib3==1.26.9

@@ -61,15 +61,15 @@ def explode_dpi(targets):
 
 # read the method_config file
 import json
-def configuration_from_json():
-    with open(os.path.join(ROOT_DIR,'config.json'), "r") as jsonfile:
+def configuration_from_json(args):
+    with open(os.path.join(ROOT_DIR,'%s%s%s' % ('config_',args.model,'.json')), "r") as jsonfile:
         config = json.load(jsonfile)
     return config
 
 
 ## write json from argparse
 def write_config(args):
-    with open(os.path.join(ROOT_DIR,'config.json'), "w") as f:
+    with open(os.path.join(ROOT_DIR,'%s%s%s' % ('config_',args.model,'.json')), "w") as f:
         json.dump(
             {
                 args.model:{

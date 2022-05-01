@@ -4,6 +4,10 @@ import os
 from rdkit.Chem import AllChem
 import rdkit
 
+from rdkit.ML.Descriptors import MoleculeDescriptors
+from rdkit.Chem import Descriptors
+from rdkit.Chem.EState import Fingerprinter
+
 from utilitis import *
 
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
@@ -163,6 +167,31 @@ def load_drug_features():
         fingerprints = pd.DataFrame(fingerprints)
         fingerprints.columns = fingerprints.columns.astype(int)
         return fingerprints
+    
+    def process_MACCS():
+        # MACCS fingerprint
+        pass
+    
+    
+    def process_ChemicalDescrpitor():
+        # Chemical descriptors
+        def get_fps(mol):
+            calc=MoleculeDescriptors.MolecularDescriptorCalculator([x[0] for x in Descriptors._descList])
+            ds = np.asarray(calc.CalcDescriptors(mol))
+            arr=Fingerprinter.FingerprintMol(mol)[0]
+            return np.append(arr,ds)
+        
+        
+        fingerprints = dict()
+        for mol in molecules:
+            drugbank_id = mol.GetProp('DATABASE_ID')
+            fingerprints[split_it(drugbank_id)] = get_fps(mol)
+
+        fingerprints = pd.DataFrame(fingerprints)
+        fingerprints.columns = fingerprints.columns.astype(int)
+        return fingerprints
+
+
 
     def process_dpi():
         # load drug target dataset
@@ -178,11 +207,6 @@ def load_drug_features():
         for drug, row_id in drug_mapping.items():
             target_feats[int(drug)] = encoding[row_id].tolist()
         return pd.DataFrame(target_feats)
-
-    def process_smiles():
-        # one-hot-encode smiles, similar to fingerprint
-        
-        pass
 
 
     def process_smiles2graph():
@@ -220,6 +244,7 @@ def load_drug_features():
     if not os.path.exists(save_path):
         data_dicts = {}
         data_dicts['morgan_fingerprint'] = process_fingerprint()
+        data_dicts['chemical_descriptor'] = process_ChemicalDescrpitor()
         data_dicts['drug_target'] = process_dpi()
         data_dicts['smiles2graph'] = process_smiles2graph()
         data_dicts['smiles2graph_TGSynergy'] = process_smiles2graph_TGSynergy()

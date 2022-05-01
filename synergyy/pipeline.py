@@ -18,12 +18,13 @@ from prepare_data import *
 from select_features import *
 from get_model import get_model
 from dataloader import dataloader, dataloader_graph, k_fold_trainer, k_fold_trainer_graph, evaluator, evaluator_graph,\
-    k_fold_trainer_graph_TGSynergy
+    k_fold_trainer_graph_TGSynergy,evaluator_graph_TGSynergy
 import torch_geometric.data
 
 
+
 def prepare_data(args):
-    _configs_ = configuration_from_json()
+    _configs_ = configuration_from_json(args)
     config = _configs_[args.model]
 
     print("loading synergy dataset ...")
@@ -44,7 +45,7 @@ def prepare_data(args):
 
     # Cleaning synergy data. Cells not having top variance genes are removed
     ## Cell feats: multi-omics dataset / get_cell select top genes by variance or kegg pathway
-    if args.cell_omics == 'exp':
+    if args.cell_omics[0] in ["exp","cn","mut"]:
         cell_feats, selected_cells = get_cell(cellFeatures_dicts, cellset, config['cell_omics'], \
             config['cell_filtered_by'], config['get_cellfeature_concated'])
     elif args.cell_omics[0] == 'GNN_cell':
@@ -103,7 +104,7 @@ def prepare_data(args):
     drug_mat_dict = {}
     for feat_type in config['drug_omics']:
 ### 需要修改, append到一个list
-        if feat_type=='smiles2graph' or 'smiles2graph_TGSynergy':
+        if feat_type=='smiles2graph' or feat_type=='smiles2graph_TGSynergy':
             temp_X_drug1, temp_X_drug2 = [], []
             for i in tqdm(range(synergy_df.shape[0])):
                 row = synergy_df.iloc[i]
@@ -258,8 +259,9 @@ def training(X_cell, X_drug, Y, args):
         X_fp_drug1_trainval, X_fp_drug1_test,\
         X_fp_drug2_trainval, X_fp_drug2_test,\
         Y_trainval, Y_test \
-        = train_test_split(X_cell, X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], Y, \
+        = train_test_split(X_cell, X_drug['chemical_descriptor_1'],X_drug['chemical_descriptor_2'], Y, \
                                 test_size=0.2, random_state=42)
+        #morgan_fingerprint_1,morgan_fingerprint_2
 
         cell_channels = X_cell_trainval.shape[1]
         drug_channels = X_fp_drug1_trainval.shape[1]
@@ -351,9 +353,12 @@ def evaluate(model, model_weights, test_loader, args):
         model = load(model)
         actuals, predictions = test_loader['actuals'], model.predict_proba(test_loader['X_test'])[:,1]
 
-    elif args.model in ['deepdds_wang','TGSynergy']:
+    elif args.model in ['deepdds_wang']:
 
         actuals, predictions = evaluator_graph(model, model_weights,test_loader)
+
+    elif args.model in ['TGSynergy']:
+        actuals, predictions = evaluator_graph_TGSynergy(model, model_weights,test_loader)
         
     else:
 

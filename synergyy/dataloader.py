@@ -600,3 +600,49 @@ def evaluator_graph(model,model_weights,temp_loader_test):
     predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
 
     return actuals, predictions
+
+def evaluator_graph_TGSynergy(model,model_weights,temp_loader_test):
+# For graph, the dataloader should be imported from torch geometric
+
+    test_dataset_drug = temp_loader_test[0]
+    test_dataset_drug2 = temp_loader_test[1]
+    test_dataset_cell = temp_loader_test[2]
+    test_dataset_target = temp_loader_test[3].tolist()
+
+    test_df = [test_dataset_drug,test_dataset_drug2,test_dataset_cell,test_dataset_target]
+    test_df = pd.DataFrame(test_df).T
+
+    Dataset = MyDataset 
+    test_df = Dataset(test_df)
+            
+    test_loader = torch_geometric.data.DataLoader(test_df, batch_size=256,shuffle = False)
+
+    predictions, actuals = list(), list()
+
+    for i, data in enumerate(test_loader):
+        
+        data1 = data[0]
+        data2 = data[1]
+        data_cell = data[2]
+        data_target = data[3]
+
+        drug, drug2, cell = data1, data2, data_cell
+
+        model.load_state_dict(torch.load(model_weights))
+
+        y_pred = model(drug, drug2, cell)
+        y_pred = y_pred.detach().numpy()
+        # pick the index of the highest values
+        #res = np.argmax(y_pred, axis = 1) 
+
+        # actual output
+        actual = data_target.numpy()
+        actual = actual.reshape(len(actual), 1)
+        # store the values in respective lists
+        predictions.append(list(y_pred))
+        actuals.append(list(actual))
+
+    actuals = [val for sublist in np.vstack(list(chain(*actuals))) for val in sublist]
+    predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
+
+    return actuals, predictions
