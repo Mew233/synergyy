@@ -14,10 +14,10 @@ class Deepsynergy_Preuer(nn.Module):
 
         self.NN = nn.Sequential(
             nn.Linear(channels, 32),
-           #nn.BatchNorm1d(512),
+            # nn.BatchNorm1d(32),
             nn.ReLU(),
             nn.Linear(32, 32),
-            #nn.BatchNorm1d(512),
+            # nn.BatchNorm1d(32),
             nn.ReLU(),
             nn.Linear(32, 32),
             nn.ReLU(),

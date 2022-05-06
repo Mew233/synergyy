@@ -9,8 +9,8 @@ import torch.nn as nn
 from tqdm import tqdm
 import joblib
 from joblib import dump, load
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import roc_auc_score,average_precision_score,cohen_kappa_score
+from sklearn.metrics import fbeta_score,accuracy_score,precision_score,recall_score
 from sklearn.model_selection import train_test_split, KFold
 from sklearn.model_selection import cross_val_score, cross_validate
 
@@ -157,10 +157,14 @@ def prepare_data(args):
     return X_cell, X_drug, Y_score
 
 def training_baselines(X_cell, X_drug, Y, args):
+    if args.external_validation:
+        test_size = 0.9999
+    else:
+        test_size = 0.2
     # --------------- baseline  --------------- #
     if args.model in ['LR','XGBOOST','RF','ERT']:
         X = np.concatenate([X_cell,X_drug], axis=1)
-        X_trainval, X_test, Y_trainval, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+        X_trainval, X_test, Y_trainval, Y_test = train_test_split(X, Y, test_size=test_size, random_state=42)
         
         # init model
         model = get_model(args.model)
@@ -193,7 +197,10 @@ def training_baselines(X_cell, X_drug, Y, args):
 
 
 def training(X_cell, X_drug, Y, args):
-
+    if args.external_validation:
+        test_size = 0.9999
+    else:
+        test_size = 0.2
 # --------------- multitask dnn --------------- #
     if args.model == 'multitaskdnn_kim':
         
@@ -205,7 +212,7 @@ def training(X_cell, X_drug, Y, args):
         Y_trainval, Y_test \
         = train_test_split(X_cell, X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], \
                                 X_drug['drug_target_1'],X_drug['drug_target_2'],Y, \
-                                test_size=0.2, random_state=42)
+                                test_size=test_size, random_state=42)
 
         cell_channels = X_cell_trainval.shape[1]
         drug_fp_channels = X_fp_drug1_trainval.shape[1]
@@ -236,7 +243,7 @@ def training(X_cell, X_drug, Y, args):
         
         X = np.concatenate([X_cell,X_drug], axis=1)
         #X_{}_trainval, X_{}_test, Y_{}_trainval, Y_{}_test
-        X_trainval, X_test, Y_trainval, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+        X_trainval, X_test, Y_trainval, Y_test = train_test_split(X, Y, test_size=test_size, random_state=42)
 
         channels = X_trainval.shape[1]
 
@@ -259,9 +266,10 @@ def training(X_cell, X_drug, Y, args):
         X_fp_drug1_trainval, X_fp_drug1_test,\
         X_fp_drug2_trainval, X_fp_drug2_test,\
         Y_trainval, Y_test \
-        = train_test_split(X_cell, X_drug['chemical_descriptor_1'],X_drug['chemical_descriptor_2'], Y, \
-                                test_size=0.2, random_state=42)
+        = train_test_split(X_cell, X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], Y, \
+                                test_size=test_size, random_state=42)
         #morgan_fingerprint_1,morgan_fingerprint_2
+        ##chemical_descriptor_1,chemical_descriptor_2
 
         cell_channels = X_cell_trainval.shape[1]
         drug_channels = X_fp_drug1_trainval.shape[1]
@@ -290,7 +298,7 @@ def training(X_cell, X_drug, Y, args):
         X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test,\
         Y_trainval, Y_test \
         = train_test_split(X_cell, X_drug['smiles2graph_1'],X_drug['smiles2graph_2'], Y, \
-                                test_size=0.2, random_state=42)
+                                test_size=test_size, random_state=42)
 
 
     
@@ -320,7 +328,7 @@ def training(X_cell, X_drug, Y, args):
         X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test,\
         Y_trainval, Y_test \
         = train_test_split(X_cell['GNN_cell'], X_drug['smiles2graph_TGSynergy_1'],X_drug['smiles2graph_TGSynergy_2'], Y, \
-                                test_size=0.2, random_state=42)
+                                test_size=test_size, random_state=42)
 
 
     #     # should be compatible with fp_drug, fp_drug2, cell
@@ -358,15 +366,25 @@ def evaluate(model, model_weights, test_loader, args):
         actuals, predictions = evaluator_graph(model, model_weights,test_loader)
 
     elif args.model in ['TGSynergy']:
+        
         actuals, predictions = evaluator_graph_TGSynergy(model, model_weights,test_loader)
         
     else:
 
         actuals, predictions = evaluator(model, model_weights,test_loader)
 
+
     auc = roc_auc_score(y_true=actuals, y_score=predictions)
     ap = average_precision_score(y_true=actuals, y_score=predictions)
-    val_results = {'AUC':auc, 'AUPR':ap}
+
+    #Cohens kapa or Matthews correlation coefficien 
+    #cohen = cohen_kappa_score(y1=actuals, y2=np.round(predictions),sample_weight=actuals)
+    accuracy = accuracy_score(y_true=actuals, y_pred=np.round(predictions))
+    precision = precision_score(y_true=actuals, y_pred=np.round(predictions))
+    recall = recall_score(y_true=actuals, y_pred=np.round(predictions))
+    f2 = fbeta_score(y_true=actuals, y_pred=np.round(predictions), average='binary', beta=2)
+ 
+    val_results = {'AUC':auc, 'AUPR':ap,'accuracy':accuracy,'precision':precision,'recall':recall,'f2':f2}
 
     return val_results
 

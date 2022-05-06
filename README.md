@@ -1,6 +1,6 @@
 ### SynergyY
 
-SynergyY is an all-in-one package for drug synergy prediction. This package allows the user to conduct **unbiased** experiments to compare the prediction performance between reviewed methods.  
+SynergyY is an all-in-one package for drug synergy prediction. This package allows the user to conduct **standardized** experiments to compare the prediction performance between reviewed methods.  
 
 The user can freely include new datasets, and select preferential cell/drug features to train the deep learning model.
 ****

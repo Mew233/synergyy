@@ -17,7 +17,7 @@ def arg_parse():
                         help='batch size (default: 256)')
     parser.add_argument('--epochs', type=int, default=50,
                         help='maximum number of epochs (default: 50)')
-    parser.add_argument('--train_test_mode', type=str, default='train',
+    parser.add_argument('--train_test_mode', type=str, default='test',
                         help='train or test')
     parser.add_argument('--model', type=str, default='deepsynergy_preuer',
                         help='import model (default: deepsynergy_preuer)')
@@ -26,15 +26,18 @@ def arg_parse():
 
 # --------------- Parse configuration  --------------- #
 
-    parser.add_argument('--synergy_df', type=str, default='DrugComb')
-    parser.add_argument('--drug_omics', nargs="+", default=['morgan_fingerprint','chemical_descriptor'],
+    parser.add_argument('--synergy_df', type=str, default='Sanger2022',
+                        help = 'DrugComb or Sanger2022')
+    parser.add_argument('--external_validation', type=bool, default=True,
+                        required=False, help = 'True for Sanger2022')
+    parser.add_argument('--drug_omics', nargs="+", default=['morgan_fingerprint'],
                         required=False, help='drug_target/morgan_fingerprint/smiles2graph/smiles2graph_TGSynergy/chemical_descriptor')    
     parser.add_argument('--cell_df', type=str, default='CCLE',
-                        required=False,help='CCLE')
+                        help='CCLE')
     parser.add_argument('--cell_omics', nargs="+", default=['exp'],
                         required=False, help='"exp","cn","mut","GNN_cell')
     parser.add_argument('--cell_filtered_by', type=str, default='variance',
-                        help='top genes selected by variance or STRING graph')
+                        required=False,help='top genes selected by variance or STRING graph')
     parser.add_argument('--get_cellfeature_concated', type=bool, default=True,
                         required=False)
     parser.add_argument('--get_drugfeature_concated', type=bool, default=True,
@@ -57,7 +60,9 @@ def main():
         print(scores)
         val_results = evaluate(model, scores, test_loader, args)
         print("testing started")
-        print(' ROCAUC: {}, PRAUC: {}'.format(round(val_results['AUC'], 4),round(val_results['AUPR'], 4)))
+        print('ROCAUC: {}, PRAUC: {}'.format(round(val_results['AUC'], 4),round(val_results['AUPR'], 4)))
+        print('accuracy: {}, precision: {}, recall: {}, f2: {}'.format(round(val_results['accuracy'], 4),\
+            round(val_results['precision'], 4),round(val_results['recall'], 4),round(val_results['f2'], 4)))
 
     # for deep learning models
     else:
@@ -65,8 +70,10 @@ def main():
         print("training finished")
         val_results = evaluate(model, network_weights, test_loader, args)
         print("testing started")
-        print(' ROCAUC: {}, PRAUC: {}'.format(round(val_results['AUC'], 4),round(val_results['AUPR'], 4)))
-    
+        print('ROCAUC: {}, PRAUC: {}'.format(round(val_results['AUC'], 4),round(val_results['AUPR'], 4)))
+        print('accuracy: {}, precision: {}, recall: {}, f2: {}'.format(round(val_results['accuracy'], 4),\
+            round(val_results['precision'], 4),round(val_results['recall'], 4),round(val_results['f2'], 4)))
+
     # save results
     # with open("results/%s.json"%(args.model), "w") as f:
     #     json.dump(val_results, f)

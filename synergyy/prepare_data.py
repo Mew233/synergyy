@@ -21,7 +21,7 @@ def load_synergy(dataset):
         dataset: str
     '''
 
-    function_mapping = {'NCI_ALMANAC':'process_almanac', 'DrugComb':'process_drugcomb'}
+    function_mapping = {'DrugComb':'process_drugcomb', 'Sanger2022':'process_sanger2022',}
 
     def process_drugcomb():
         data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','DrugComb','drugcomb_trueset.csv'))
@@ -52,8 +52,16 @@ def load_synergy(dataset):
         return summary_data
 
     
-    def process_almanac():
-        pass
+    def process_sanger2022():
+        data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Sanger2022','drug_combinations_TGSA_Jaaks.csv'))
+        data['compound0_x'] = data['compound0_x'].apply(lambda x: split_it(x))
+        data['compound0_y'] = data['compound0_y'].apply(lambda x: split_it(x))
+        data['synergy_loewe'] = data['synergy_loewe'].apply(lambda x: x*1)
+
+        summary_data = data[['compound0_x','compound0_y','DepMap_ID','synergy_loewe']].rename(columns={\
+            'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID':'cell','synergy_loewe':'score'})
+        
+        return summary_data
 
     # use locals() to run the specified function
     data = locals()[function_mapping[dataset]]()
