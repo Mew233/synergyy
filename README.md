@@ -47,7 +47,7 @@ pip install -e .
 ****
 #### Data downloaded
 SynergyY used multi-omics datasets. 
-1. DrugComb v1.5 synergy dataset 
+1. We have provided a cleaned benchmark DrugComb v1.5 synergy truset. For details of reporducing, please go to trueset_generation/ to follow the instructions.
 2. CCLE dataset including exp, cnv, mut
 3. Drug-target interaction dataset from DrugComb, and structures.sdf which  enables fingerprints calculation or smiles2graph
 ****
