@@ -3,3 +3,4 @@ data/
 *.pyc
 *.pth
 *.csv
+results/
