@@ -2,7 +2,7 @@
     Dataloader, customized K-fold trainer & evaluater
 """
 from unittest import TestLoader
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, sampler,TensorDataset
 from itertools import chain
 import torch
 import torch.nn as nn
@@ -17,8 +17,9 @@ from itertools import cycle
 from torch_geometric import data as DATA
 import random
 import pandas as pd
-from torch.utils.data import Dataset,TensorDataset
+import shap as sp
 
+torch.manual_seed(42)
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
 # def dataloader(X_train_val_set, X_test_set, Y_train_val_set, Y_test_set):
@@ -55,8 +56,8 @@ def dataloader(*args,**kwargs):
 
     train_val_dataset = torch.utils.data.TensorDataset(*temp_loader_trainval)
     test_dataset = torch.utils.data.TensorDataset(*temp_loader_test)
-    test_loader = DataLoader(test_dataset, batch_size=256,shuffle = False)
-        
+    test_loader = DataLoader(test_dataset, batch_size=256,shuffle = False, sampler=sampler.SequentialSampler(test_dataset))
+    #list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=False))
     return train_val_dataset, test_loader
 
 
@@ -82,7 +83,6 @@ def dataloader_graph(*args,**kwargs):
 
 
     return temp_loader_trainval,temp_loader_test
-
 
 def k_fold_trainer(dataset,model,args):
 
@@ -136,7 +136,8 @@ def k_fold_trainer(dataset,model,args):
                 # Zero the gradients
                 optimizer.zero_grad()
                 # forward + backward + optimize
-                outputs = network(inputs)
+                if args.model == 'deepsynergy_preuer':
+                    outputs = network(inputs[0])
 
                 loss = loss_function(outputs, targets)
                 loss.backward()
@@ -158,7 +159,9 @@ def k_fold_trainer(dataset,model,args):
             predictions, actuals = list(), list()
             for i, data in enumerate(valloader, 0):
                 inputs, labels = data[:-1], data[-1]
-                outputs = network(inputs)
+                if args.model == 'deepsynergy_preuer':
+                    outputs = network(inputs[0])
+                #outputs = network(inputs)
                 outputs = outputs.detach().numpy()
 
                 # actual output
@@ -519,7 +522,117 @@ def k_fold_trainer_graph_TGSynergy(temp_loader_trainval,model,args):
 
     return network
 
-def evaluator(model,model_weights,test_loader):
+
+def SHAP(model, model_weights,train_val_dataset, test_loader,args):
+    ####################
+    # calcuate shapley
+    ####################
+    print('calculate shapely values')
+    model.eval()
+    model.load_state_dict(torch.load(model_weights))
+
+    train_val_loader = DataLoader(train_val_dataset, batch_size=256,shuffle = False)
+    #only select first batch's endpoints as our background
+    batch = next(iter(train_val_loader))
+    background, _ = batch[:-1], batch[-1]
+
+# --------------- deepsynergy ---------------- #
+    if args.model == 'deepsynergy_preuer':
+        # 如果是一个输入, 必须为单个tensor
+        explainer = sp.DeepExplainer(model, background[0])
+        expected_value = explainer.expected_value
+        shap_list, features_list = list(), list()
+        # predictions, actuals = list(), list()
+        for i, data in enumerate(test_loader, 0):
+            # get the inputs; data is a list of [inputs, labels]
+            inputs, _ = data[:-1], data[-1]
+            shap_array_list = explainer.shap_values(inputs[0])
+            shap_list.append(shap_array_list)
+            features_list.append(inputs[0].numpy())
+
+        shap_arr = np.concatenate(shap_list, axis=0)
+        features_arr = np.concatenate(features_list, axis=0)
+        #需要figure这里的columns是什么
+        save_path = os.path.join(ROOT_DIR, 'results')
+        exp_col_list = list(np.loadtxt(os.path.join(save_path,'selected_genes.txt'), delimiter=',').astype(int))
+        drugs_col_list = list(np.arange(shap_arr.shape[1]-len(exp_col_list)))
+
+        test_idx = list(np.loadtxt(os.path.join(save_path,'test_idx.txt')).astype(int))
+        # Here we only focus on cell expression matrics, still need drug shaps to cacluate the proba
+        shap_df = pd.DataFrame(shap_arr, columns=exp_col_list+drugs_col_list, index=test_idx)
+        features_df = pd.DataFrame(features_arr, columns=exp_col_list+drugs_col_list, index=test_idx).iloc[: , :1000]
+
+# --------------- matchmaker --------------- #
+    elif args.model in ['matchmaker_brahim','multitaskdnn_kim']:
+        #如果是多个, 必须是type为list的tensor组合
+        if args.model == 'matchmaker_brahim':
+            explainer = sp.DeepExplainer(model, [background[0],background[1],background[2]])
+            expected_value = explainer.expected_value
+            shap_list, features_list = list(), list()
+            # predictions, actuals = list(), list()
+            for i, data in enumerate(test_loader, 0):
+                # get the inputs; data is a list of [inputs, labels]
+                inputs, _ = data[:-1], data[-1]
+                shap_array_list = explainer.shap_values([inputs[0],inputs[1],inputs[2]])
+                shap_list.append(shap_array_list)
+                features_list.append([inputs[0],inputs[1],inputs[2]])
+
+            shap_df = pd.DataFrame()
+            features_df = pd.DataFrame()
+            for i in np.arange(len(shap_list)):
+                chem_shap_arr, dg_shap_arr, exp_shap_arr = shap_list[i]
+                shap_arr = np.concatenate((chem_shap_arr, dg_shap_arr, exp_shap_arr), axis=1)
+                temp = pd.DataFrame(shap_arr)
+                shap_df = shap_df.append(temp)
+
+                chem_feat_arr, dg_feat_arr, exp_feat_arr = features_list[i]
+                feat_arr = np.concatenate((chem_feat_arr, dg_feat_arr, exp_feat_arr), axis=1)
+                temp_feat = pd.DataFrame(feat_arr)
+                features_df = features_df.append(temp_feat)
+                
+        elif args.model == 'multitaskdnn_kim':
+            explainer = sp.DeepExplainer(model, [background[0],background[1],background[2],background[3],background[4]])
+            expected_value = explainer.expected_value
+            shap_list, features_list = list(), list()
+            # predictions, actuals = list(), list()
+            for i, data in enumerate(test_loader, 0):
+                # get the inputs; data is a list of [inputs, labels]
+                inputs, _ = data[:-1], data[-1]
+                shap_array_list = explainer.shap_values([inputs[0],inputs[1],inputs[2],inputs[3],inputs[4]])
+                shap_list.append(shap_array_list)
+                features_list.append([inputs[0],inputs[1],inputs[2],inputs[3],inputs[4]])
+
+            shap_df = pd.DataFrame()
+            features_df = pd.DataFrame()
+            for i in np.arange(len(shap_list)):
+                ##fp_drug, tg_drug, fp_drug2, tg_drug2, cell
+                fp_drug, tg_drug, fp_drug2, tg_drug2, cell = shap_list[i]
+                shap_arr = np.concatenate((fp_drug, tg_drug, fp_drug2, tg_drug2, cell), axis=1)
+                temp = pd.DataFrame(shap_arr)
+                shap_df = shap_df.append(temp)
+
+                fp_drug_feat, tg_drug_feat, fp_drug2_feat, tg_drug2_feat, cell_feat = features_list[i]
+                feat_arr = np.concatenate((fp_drug_feat, tg_drug_feat, fp_drug2_feat, tg_drug2_feat, cell_feat), axis=1)
+                temp_feat = pd.DataFrame(feat_arr)
+                features_df = features_df.append(temp_feat)
+            
+    ## 共用
+
+        save_path = os.path.join(ROOT_DIR, 'results')
+        exp_col_list = list(np.loadtxt(os.path.join(save_path,'selected_genes.txt'), delimiter=',').astype(int))
+        drugs_col_list = list(np.arange(shap_arr.shape[1]-len(exp_col_list)))
+
+        test_idx = list(np.loadtxt(os.path.join(save_path,'test_idx.txt')).astype(int))
+        shap_df.columns = drugs_col_list+exp_col_list
+        shap_df.index = test_idx
+
+        features_df.columns = drugs_col_list+exp_col_list
+        features_df.index = test_idx
+        #shap_df = pd.DataFrame(shap_arr, columns=drugs_col_list+exp_col_list, index=test_idx)
+
+    return shap_df, features_df, expected_value
+
+def evaluator(model,model_weights,train_val_dataset,test_loader, args):
     """_summary_
 
     Args:
@@ -529,18 +642,21 @@ def evaluator(model,model_weights,test_loader):
     Returns:
         _type_: _description_
     """
-    
+    model.eval()
+    model.load_state_dict(torch.load(model_weights))
+
     predictions, actuals = list(), list()
     for i, data in enumerate(test_loader, 0):
         # get the inputs; data is a list of [inputs, labels]
         inputs, labels = data[:-1], data[-1]
+        if args.model == 'deepsynergy_preuer':
+            y_pred = model(inputs[0])
+        elif args.model == 'matchmaker_brahim':
+            y_pred = model(inputs[0],inputs[1],inputs[2])
+        elif args.model == 'multitaskdnn_kim':
+            y_pred = model(inputs[0],inputs[1],inputs[2],inputs[3],inputs[4])
 
-        model.load_state_dict(torch.load(model_weights))
-
-        y_pred = model(inputs)
         y_pred = y_pred.detach().numpy()
-        # pick the index of the highest values
-        #res = np.argmax(y_pred, axis = 1) 
 
         # actual output
         actual = labels.numpy()
@@ -552,7 +668,15 @@ def evaluator(model,model_weights,test_loader):
     actuals = [val for sublist in np.vstack(list(chain(*actuals))) for val in sublist]
     predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
 
-    return actuals, predictions
+    if args.SHAP_analysis == True:
+        shap_df, features_df, expected_value = SHAP(model, model_weights,train_val_dataset, test_loader,args)
+        # shap_df['actuals'] = actuals
+        # shap_df['predictions'] = predictions
+    else:
+        shap_df = None
+        features_df = None
+        expected_value = None
+    return actuals, predictions, shap_df, features_df, expected_value
 
 def evaluator_graph(model,model_weights,temp_loader_test):
 # For graph, the dataloader should be imported from torch geometric

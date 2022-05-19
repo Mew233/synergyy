@@ -1,6 +1,7 @@
 """
     A collection of full training and evaluation pipelines.
 """
+from logging import raiseExceptions
 import numpy as np 
 import pandas as pd
 import torch
@@ -19,6 +20,7 @@ from select_features import *
 from get_model import get_model
 from dataloader import dataloader, dataloader_graph, k_fold_trainer, k_fold_trainer_graph, evaluator, evaluator_graph,\
     k_fold_trainer_graph_TGSynergy,evaluator_graph_TGSynergy
+from dataloader import SHAP
 import torch_geometric.data
 
 
@@ -46,8 +48,12 @@ def prepare_data(args):
     # Cleaning synergy data. Cells not having top variance genes are removed
     ## Cell feats: multi-omics dataset / get_cell select top genes by variance or kegg pathway
     if args.cell_omics[0] in ["exp","cn","mut"]:
-        cell_feats, selected_cells = get_cell(cellFeatures_dicts, cellset, config['cell_omics'], \
+        cell_feats, selected_cells, selected_genes = get_cell(cellFeatures_dicts, cellset, config['cell_omics'], \
             config['cell_filtered_by'], config['get_cellfeature_concated'])
+        ## Save selected genes for SHAPLEY analysis
+        save_path = os.path.join(ROOT_DIR, 'results','selected_genes.txt')
+        np.savetxt(save_path, np.array(selected_genes).astype(int), delimiter=',')
+
     elif args.cell_omics[0] == 'GNN_cell':
         #这里load了更多的cell
         # cell_feats, selected_cells = cellFeatures_dicts, get_GNNCell()
@@ -57,7 +63,9 @@ def prepare_data(args):
     print("cell line features constructed")
     synergy_df = synergy_df[(synergy_df['drug1'].isin(selected_drugs))\
         &(synergy_df['drug2'].isin(selected_drugs))&(synergy_df['cell'].isin(selected_cells))]
-
+    
+    save_path = os.path.join(ROOT_DIR, 'results','processed_synergydf_%s.csv' % args.synergy_df)
+    synergy_df.to_csv(save_path, header=True, index=True, sep=",")
 
     print("\nSynergy triplets are: ")
     print("\t{} drugs:".format(len(selected_drugs)))
@@ -198,21 +206,28 @@ def training_baselines(X_cell, X_drug, Y, args):
 
 def training(X_cell, X_drug, Y, args):
     if args.external_validation:
-        test_size = 0.9999
+        test_size = 0.9999 # 0.9999
     else:
         test_size = 0.2
 # --------------- multitask dnn --------------- #
     if args.model == 'multitaskdnn_kim':
         
+        save_path = os.path.join(ROOT_DIR, 'results','processed_synergydf_%s.csv' % args.synergy_df)
+        processed_synergydf = pd.read_csv(save_path, index_col=0, sep=",")
+        dummy = np.array(processed_synergydf.index)
+
         X_cell_trainval, X_cell_test, \
         X_fp_drug1_trainval, X_fp_drug1_test,\
         X_fp_drug2_trainval, X_fp_drug2_test,\
         X_tg_drug1_trainval, X_tg_drug1_test,\
         X_tg_drug2_trainval, X_tg_drug2_test,\
-        Y_trainval, Y_test \
-        = train_test_split(X_cell, X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], \
-                                X_drug['drug_target_1'],X_drug['drug_target_2'],Y, \
+        Y_trainval, Y_test,  _, dummy_test = train_test_split(X_cell, X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], \
+                                X_drug['drug_target_1'],X_drug['drug_target_2'],Y, dummy, \
                                 test_size=test_size, random_state=42)
+
+        save_path = os.path.join(ROOT_DIR, 'results','test_idx.txt')
+        np.savetxt(save_path,dummy_test.astype(int), delimiter=',')
+
 
         cell_channels = X_cell_trainval.shape[1]
         drug_fp_channels = X_fp_drug1_trainval.shape[1]
@@ -242,8 +257,14 @@ def training(X_cell, X_drug, Y, args):
     elif args.model == 'deepsynergy_preuer':
         
         X = np.concatenate([X_cell,X_drug], axis=1)
-        #X_{}_trainval, X_{}_test, Y_{}_trainval, Y_{}_test
-        X_trainval, X_test, Y_trainval, Y_test = train_test_split(X, Y, test_size=test_size, random_state=42)
+        #X_{}_trainval, X_{}_test, Y_{}_trainval, Y_{}_test, dummy_train, dummy_test(为了shap analysis)
+        save_path = os.path.join(ROOT_DIR, 'results','processed_synergydf_%s.csv' % args.synergy_df)
+        processed_synergydf = pd.read_csv(save_path, index_col=0, sep=",")
+        dummy = np.array(processed_synergydf.index)
+
+        X_trainval, X_test, Y_trainval, Y_test, _, dummy_test  = train_test_split(X, Y, dummy, test_size=test_size, random_state=42)
+        save_path = os.path.join(ROOT_DIR, 'results','test_idx.txt')
+        np.savetxt(save_path,dummy_test.astype(int), delimiter=',')
 
         channels = X_trainval.shape[1]
 
@@ -351,10 +372,10 @@ def training(X_cell, X_drug, Y, args):
         elif args.train_test_mode == 'train':
             net_weights = k_fold_trainer_graph_TGSynergy(train_val_dataset,model,args)
     
-    return model, net_weights, test_loader
+    return model, net_weights, test_loader, train_val_dataset
 
 
-def evaluate(model, model_weights, test_loader, args):
+def evaluate(model, model_weights, test_loader, train_val_dataset, args):
 
     if args.model in ['LR','XGBOOST','RF','ERT']:
     
@@ -370,9 +391,24 @@ def evaluate(model, model_weights, test_loader, args):
         actuals, predictions = evaluator_graph_TGSynergy(model, model_weights,test_loader)
         
     else:
+        actuals, predictions, shap_df, features_df, expected_value  = evaluator(model, model_weights,train_val_dataset, test_loader, args)
 
-        actuals, predictions = evaluator(model, model_weights,test_loader)
+    # save actuals/predictions
+    test_idx = list(np.loadtxt(os.path.join(ROOT_DIR, 'results','test_idx.txt')).astype(int))
+    predict_df = pd.DataFrame(np.column_stack([test_idx,actuals,predictions]),\
+                columns=['index','actuals','predicts_%s' % args.model])
+    save_path = os.path.join(ROOT_DIR, 'results','predicts_%s_%s.txt' % (args.model, args.synergy_df))
+    predict_df.to_csv(save_path, header=True, index=True, sep=",")
 
+    # save the shap_df and features_df
+    save_path_shap = os.path.join(ROOT_DIR, 'results','shap_df_%s_%s_%s.txt' % (args.model, str(expected_value), args.synergy_df))
+    save_path_feat = os.path.join(ROOT_DIR, 'results','feat_df_%s_%s_%s.txt' % (args.model, str(expected_value), args.synergy_df))
+    try:
+        shap_df.to_csv(save_path_shap, header=True, index=True, sep=",")
+        features_df.to_csv(save_path_feat, header=True, index=True, sep=",")
+    except:
+        print('Not calculate Shapley value here!')
+        pass
 
     auc = roc_auc_score(y_true=actuals, y_score=predictions)
     ap = average_precision_score(y_true=actuals, y_score=predictions)
@@ -387,5 +423,3 @@ def evaluate(model, model_weights, test_loader, args):
     val_results = {'AUC':auc, 'AUPR':ap,'accuracy':accuracy,'precision':precision,'recall':recall,'f2':f2}
 
     return val_results
-
-

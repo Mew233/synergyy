@@ -53,8 +53,9 @@ class Multitaskdnn_Kim(nn.Module):
         )
 
 
-    def forward(self, inputs):
-        fp_drug, tg_drug, fp_drug2, tg_drug2, cell = inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]
+    def forward(self, fp_drug, tg_drug, fp_drug2, tg_drug2, cell):
+        #fp_drug, tg_drug, fp_drug2, tg_drug2, cell \
+        # = inputs[0] (256), inputs[1](2832), inputs[2](256), inputs[3](2832), inputs[4](1000)
         # forward drug
         x_fp_drug = self.drug_fp_emb(fp_drug)
         x_tg_drug = self.drug_target_emb(tg_drug)

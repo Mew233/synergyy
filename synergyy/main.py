@@ -17,8 +17,9 @@ def arg_parse():
                         help='batch size (default: 256)')
     parser.add_argument('--epochs', type=int, default=50,
                         help='maximum number of epochs (default: 50)')
-    parser.add_argument('--train_test_mode', type=str, default='test',
+    parser.add_argument('--train_test_mode', type=str, default='train',
                         help='train or test')
+    parser.add_argument('--SHAP_analysis', type=bool, default=False)
     parser.add_argument('--model', type=str, default='deepsynergy_preuer',
                         help='import model (default: deepsynergy_preuer)')
                         #options are 'LR','XGBOOST','RF','ERT','deepsynergy_preuer','multitaskdnn_kim',
@@ -26,9 +27,9 @@ def arg_parse():
 
 # --------------- Parse configuration  --------------- #
 
-    parser.add_argument('--synergy_df', type=str, default='Sanger2022',
+    parser.add_argument('--synergy_df', type=str, default='DrugComb',
                         help = 'DrugComb or Sanger2022')
-    parser.add_argument('--external_validation', type=bool, default=True,
+    parser.add_argument('--external_validation', type=bool, default=False,
                         required=False, help = 'True for Sanger2022')
     parser.add_argument('--drug_omics', nargs="+", default=['morgan_fingerprint'],
                         required=False, help='drug_target/morgan_fingerprint/smiles2graph/smiles2graph_TGSynergy/chemical_descriptor')    
@@ -55,7 +56,7 @@ def main():
     X_cell, X_drug, Y = prepare_data(args)
     print("data loaded")
     if args.model in ['LR','XGBOOST','RF','ERT']:
-        model, scores, test_loader = training_baselines(X_cell, X_drug, Y, args)
+        model, scores, test_loader, train_val_dataset = training_baselines(X_cell, X_drug, Y, args)
         print("training finished")
         print(scores)
         val_results = evaluate(model, scores, test_loader, args)
@@ -66,9 +67,9 @@ def main():
 
     # for deep learning models
     else:
-        model, network_weights, test_loader = training(X_cell, X_drug, Y, args)
+        model, network_weights, test_loader, train_val_dataset = training(X_cell, X_drug, Y, args)
         print("training finished")
-        val_results = evaluate(model, network_weights, test_loader, args)
+        val_results = evaluate(model, network_weights, test_loader, train_val_dataset, args)
         print("testing started")
         print('ROCAUC: {}, PRAUC: {}'.format(round(val_results['AUC'], 4),round(val_results['AUPR'], 4)))
         print('accuracy: {}, precision: {}, recall: {}, f2: {}'.format(round(val_results['accuracy'], 4),\

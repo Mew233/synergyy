@@ -66,7 +66,7 @@ def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, m
         else:
             feats = CCLE_dicts
 
-    return feats, selected_cols
+    return feats, selected_cols, selected_genes
 
 
 

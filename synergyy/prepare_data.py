@@ -24,7 +24,7 @@ def load_synergy(dataset):
     function_mapping = {'DrugComb':'process_drugcomb', 'Sanger2022':'process_sanger2022',}
 
     def process_drugcomb():
-        data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','DrugComb','drugcomb_trueset.csv'))
+        data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','DrugComb','drugcomb_trueset_NoDup.csv'))
         data = data[['drug_row', 'drug_col','cell_line_name','study_name','tissue_name',\
           'synergy_zip','synergy_loewe','synergy_hsa','synergy_bliss','DepMap_ID_x','RRID_x',\
           'pubchemID_x','compound0_x','pubchemID_y','compound0_y']]
@@ -39,15 +39,15 @@ def load_synergy(dataset):
 
 
         # # summarize 3*3 or 5*3 data into one by calculating the mean score
-        summary_data = data_trim.groupby(['compound0_x','compound0_y','DepMap_ID_x']).agg({\
-            "synergy_loewe":'mean',"study_name":'count'}).reset_index().rename(columns={\
-                'synergy_loewe':'MEAN_SCORE','study_name':'count'}).astype({'compound0_x':'int32','compound0_y':'int32'})
+        # summary_data = data_trim.groupby(['compound0_x','compound0_y','DepMap_ID_x']).agg({\
+        #     "synergy_loewe":'mean',"study_name":'count'}).reset_index().rename(columns={\
+        #         'synergy_loewe':'MEAN_SCORE','study_name':'count'}).astype({'compound0_x':'int32','compound0_y':'int32'})
 
         # # some experiments may fail and get NA values, drop these experiments
-        summary_data = summary_data.dropna()
+        summary_data = data_trim.dropna()
 
-        summary_data = summary_data[['compound0_x','compound0_y','DepMap_ID_x','MEAN_SCORE']].rename(columns={\
-            'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID_x':'cell','MEAN_SCORE':'score'})
+        summary_data = summary_data[['compound0_x','compound0_y','DepMap_ID_x','synergy_loewe']].rename(columns={\
+            'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID_x':'cell','synergy_loewe':'score'})
 
         return summary_data
 

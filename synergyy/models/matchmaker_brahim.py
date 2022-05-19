@@ -35,8 +35,8 @@ class MatchMaker_Brahim(nn.Module):
         )
 
 
-    def forward(self, inputs):
-        fp_drug, fp_drug2, cell = inputs[0], inputs[1], inputs[2]
+    def forward(self, fp_drug, fp_drug2, cell):
+        # fp_drug, fp_drug2, cell = inputs[0], inputs[1], inputs[2]
         
         # The left drug
         hidden_left = torch.cat([cell, fp_drug], dim=1)
