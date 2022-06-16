@@ -19,7 +19,7 @@ class MatchMaker_Brahim(nn.Module):
         self.drug_context_layer = nn.Sequential(
             nn.Linear(drug_channels + cell_channels, 32),
             nn.ReLU(),
-            nn.Dropout(dropout_rate),
+            nn.Dropout(0.2),
             nn.Linear(32, 32),
             nn.ReLU(),
             nn.Dropout(dropout_rate),
@@ -31,9 +31,10 @@ class MatchMaker_Brahim(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout_rate),
             nn.Linear(32, 1),
-            nn.Sigmoid(),
+            #nn.Sigmoid(),
         )
 
+        self.classify = nn.Sigmoid()
 
     def forward(self, fp_drug, fp_drug2, cell):
         # fp_drug, fp_drug2, cell = inputs[0], inputs[1], inputs[2]
@@ -47,4 +48,9 @@ class MatchMaker_Brahim(nn.Module):
         hidden_right = self.drug_context_layer(hidden_right)
 
         hidden = torch.cat([hidden_left, hidden_right], dim=1)
-        return self.final(hidden)
+        hidden_rev = torch.cat([hidden_right, hidden_left], dim=1)
+
+        hidden = self.final(hidden)
+        hidden_rev = self.final(hidden_rev)
+
+        return self.classify((hidden+hidden_rev)/2)

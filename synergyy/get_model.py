@@ -4,6 +4,7 @@ from models.multitaskdnn_kim import *
 from models.matchmaker_brahim import *
 from models.deepdds_wang import *
 from models.TGSynergy import *
+from models.transynergy_liu import *
 import argparse
 
 def get_model(model_name,*args):
@@ -16,7 +17,11 @@ def get_model(model_name,*args):
     if model_name is "deepsynergy_preuer":
 
         return Deepsynergy_Preuer(channels=args[0],dropout_rate = 0.5)
+    
+    if model_name is "transynergy_liu":
 
+        return Transynergy_Liu(d_input=2750, d_model=200, n_feature_type=3*3, N=1, heads=8, dropout=0.2)
+        #return Transynergy_Liu(setting.d_input, setting.d_model, setting.n_feature_type, setting.n_layers, setting.attention_heads, setting.attention_dropout)
     if model_name is "multitaskdnn_kim":
 
         return Multitaskdnn_Kim(cell_channels=args[0],\
@@ -30,8 +35,8 @@ def get_model(model_name,*args):
         return DeepDDS_Wang()
 
     if model_name is "TGSynergy":
-        return TGSynergy(cluster_predefine=args[0])
 
+        return TGSynergy(cluster_predefine=args[0])
 
     # model, encoders =  autoencoder_NN(), autoencoder()
     # if model_name is "autodencoders":

@@ -43,7 +43,7 @@ pip install -e .
 |  Multitask_DNN |    exp  |  Morgan or MACCS fingerprints, Drug-target interaction    |     DNN   | DNN     |  | False| False |
 | Graph based: DeepDDS|    exp |  SMILES2Graph   |     MLP   |   GCN   | | | False |
 | Graph based: TGSynergy (modified from TGSA)|    exp |  SMILES2Graph   |     GCN   |   GCN   | | | False |
-
+| Graph based: TranSynergy|    exp |  Network propagated Drug-target interaction   |     Transformer   |   GCN(RWR)+Transformer   | | | False |
 ****
 #### Data downloaded
 SynergyY used multi-omics datasets. 
@@ -62,6 +62,7 @@ In detail, the following drug synergy prediction models were implemented.
     - [3] [Yejin Kim, Shuyu Zheng, Jing Tang, Wenjin Jim Zheng, Zhao Li, and Xiaoqian Jiang. Anticancer Drug Synergy Prediction in Understudied Tissues Using Transfer Learning. Journal of the American Medical Informatics Association, 28(1):42–51, 2021.](https://academic.oup.com/jamia/article/28/1/42/5920819?login=true)
     - [4] [Jinxian Wang, Xuejun Liu, Siyuan Shen, Lei Deng, and Hui Liu. DeepDDS: Deep Graph Neural Network with Attention Mechanism to Predict Synergistic Drug Combinations. Briefings in Bioinformatics, 09 2021](https://academic.oup.com/bib/article/23/1/bbab390/6375262)
     - [5] [Yiheng Zhu, Zhenqiu Ouyang, Wenbo Chen, Ruiwei Feng, Danny Z Chen, Ji Cao, Jian Wu, TGSA: protein–protein association-based twin graph neural networks for drug response prediction with similarity augmentation, Bioinformatics, Volume 38, Issue 2, 15 January 2022, Pages 461–468](https://academic.oup.com/bioinformatics/article-abstract/38/2/461/6374919?redirectedFrom=fulltext)
+    - [6] [Liu, Qiao, and Lei Xie. "TranSynergy: Mechanism-driven interpretable deep neural network for the synergistic prediction and pathway deconvolution of drug combinations." PLoS computational biology 17.2 (2021): e1008653.](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1008653&ref=https://githubhelp.com)
 ****
 
 #### Constructing ...

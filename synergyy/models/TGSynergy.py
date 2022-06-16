@@ -73,6 +73,21 @@ class GNN_cell(torch.nn.Module):
 
         return node_representation
 
+    def grad_cam(self, cell):
+        for i in range(self.layer_cell):
+            cell.x = F.relu(self.convs_cell[i](cell.x, cell.edge_index))
+            if i == 0:
+                cell_node = cell.x
+                cell_node.retain_grad()
+            num_node = int(cell.x.size(0) / cell.num_graphs)
+            cluster = torch.cat([self.cluster_predefine[i] + j * num_node for j in range(cell.num_graphs)])
+            cell = max_pool(cluster, cell, transform=None)
+            cell.x = self.bns_cell[i](cell.x)
+
+        node_representation = cell.x.reshape(-1, self.final_node * self.dim_cell)
+
+        return cell_node, node_representation
+
 
 class TGSynergy(nn.Module):
     def __init__(self, cluster_predefine):
@@ -137,7 +152,9 @@ class TGSynergy(nn.Module):
             nn.Linear(512, 256)
         )
 
-    def forward(self, drug, drug2, cell):
+    def forward(self, inputs):
+
+        drug, drug2, cell = inputs[0], inputs[1], inputs[2]
         # forward drug
         x_drug = self.GNN_drug(drug)
         x_drug = self.drug_emb(x_drug)

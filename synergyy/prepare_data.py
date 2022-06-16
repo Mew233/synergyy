@@ -1,5 +1,6 @@
 import numpy as np 
-import pandas as pd 
+import pandas as pd
+import collections
 import os
 from rdkit.Chem import AllChem
 import rdkit
@@ -9,6 +10,7 @@ from rdkit.Chem import Descriptors
 from rdkit.Chem.EState import Fingerprinter
 
 from utilitis import *
+
 
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -112,7 +114,19 @@ def load_cellline_features(dataset):
                 processed_data = mu_transpose.drop(mu_transpose.index[0])
             return processed_data
         
-        
+        # def load_cpi_network():
+        #     df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','CCLE_mut.csv'),sep=',')
+        #     mu = df.loc[df['Entrez_Gene_Id'].values !=0]
+        #     mu = mu[['DepMap_ID','Entrez_Gene_Id']]
+
+        #     #deplete proteins in dpi, which not in ppi
+        #     ppi = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','PPI','protein-protein_network.csv'))
+        #     selected_proteins = ppi['protein_a'].unique().to_list() + ppi['protein_b'].unique().to_list()
+        #     mu_new = mu[(mu['Entrez_Gene_Id'].isin(selected_proteins))]
+        #     return mu_new  
+
+
+
         # load all cell line features
         save_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE')
         save_path = os.path.join(save_path, 'input_cellline_data.npy')
@@ -121,10 +135,13 @@ def load_cellline_features(dataset):
             for file_type in ['exp', 'cn', 'mut']:
                 data_dicts[ file_type ] = load_file(file_type)
             # load GNN_cell
-                gnn_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE')
-                gnn_path = os.path.join(gnn_path, 'cell_feature_cn_std.npy')
-                cell_dict = np.load(gnn_path,allow_pickle=True).item()
-                data_dicts['GNN_cell'] = cell_dict
+            gnn_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE')
+            gnn_path = os.path.join(gnn_path, 'cell_feature_cn_std.npy')
+            cell_dict = np.load(gnn_path,allow_pickle=True).item()
+            data_dicts['GNN_cell'] = cell_dict
+
+            # # load cpi_network
+            # data_dicts['cpi_network'] = load_cpi_network()
 
             np.save(save_path, data_dicts)
         else:
@@ -134,6 +151,9 @@ def load_cellline_features(dataset):
             gnn_path = os.path.join(gnn_path, 'cell_feature_cn_std.npy')
             cell_dict = np.load(gnn_path,allow_pickle=True).item()
             data_dicts['GNN_cell'] = cell_dict
+
+            # # load cpi_network
+            # data_dicts['cpi_network'] = load_cpi_network()
             
         edge_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE')
         edge_path = os.path.join(edge_path, 'edge_index_PPI_0.95.npy')
@@ -214,7 +234,76 @@ def load_drug_features():
         target_feats = dict()
         for drug, row_id in drug_mapping.items():
             target_feats[int(drug)] = encoding[row_id].tolist()
-        return pd.DataFrame(target_feats)
+        
+        proessed_dpi = pd.DataFrame(target_feats)
+        proessed_dpi.index = drug_targets['NCBI_ID'].unique()
+        proessed_dpi.to_csv(os.path.join(ROOT_DIR, 'results','proessed_dpi.csv'))
+
+        return proessed_dpi
+
+    ##RWR algorithm for drug-target from transynergy
+    def process_dpi_RWR():
+        
+        network = nx.read_edgelist(os.path.join(ROOT_DIR, 'data','cell_line_data','PPI','string_network'), delimiter='\t', nodetype=int,
+                           data=(('weight', float),))
+        
+        data_dicts = np.load(os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','input_cellline_data.npy'),allow_pickle=True).item()
+        ccle = data_dicts['exp']
+
+        #column is drugbank id, row is entrez id
+        drug_target = pd.read_csv(os.path.join(ROOT_DIR, 'results','proessed_dpi.csv'), index_col=0)
+        drug_target = drug_target.loc[drug_target.index.isin(list(network.nodes)), :]
+        drug_target = drug_target.loc[drug_target.index.isin(list(ccle.index)), :]
+
+        drug_target.fillna(0.00001, inplace = True)
+
+        # generate I matrix
+        subnetwork = network.subgraph(list(drug_target.index.values))
+        A = (subnetwork.subgraph(c) for c in nx.connected_components(subnetwork))
+        subgraphs = list(A)
+        subgraph = subgraphs[0]
+        subgraph_nodes = list(subgraph.nodes)
+        I = pd.DataFrame(np.identity(len(subgraph_nodes)), index=subgraph_nodes, columns=subgraph_nodes)
+        print("Preparing network propagation kernel")
+
+        drug_target = drug_target.loc[drug_target.index.isin(list(I.index.values)), :]
+        kernel = network_propagation(subgraph, I, alpha=0.5, symmetric_norm=False, verbose=True)
+        print("Got network propagation kernel. Start propagate ...")
+
+        genes = I.index.values
+        propagated_drug_target = network_kernel_propagation(network=subgraph, network_kernel=kernel,
+                                                     binary_matrix=drug_target.T)
+        propagated_drug_target = propagated_drug_target.loc[:, list(genes)]
+        print("Propagation finished")
+        propagated_drug_target = standarize_dataframe(propagated_drug_target)
+        
+        return propagated_drug_target.T
+
+
+    # ## for graphsynergy =============unfinished===============
+    # def process_dpi_network():
+    #     targets = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all.csv'))
+    #     drug_targets = explode_dpi(targets)
+    #     #deplete proteins in dpi, which not in ppi
+    #     ppi = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','PPI','protein-protein_network.csv'))
+
+    #     selected_proteins = list(set(ppi['protein_a'])) + list(set(ppi['protein_b']))
+        
+    #     drug_targets_new = drug_targets[(drug_targets['NCBI_ID'].isin(selected_proteins))]
+        
+        
+    #     def get_target_dict(dpi_df):
+    #         dp_dict = collections.defaultdict(list)
+    #         drug_list = list(set(dpi_df['drug']))
+    #         for drug in drug_list:
+    #             drug_df = dpi_df[dpi_df['drug']==drug]
+    #             target = list(set(drug_df['protein']))
+    #             dp_dict[drug] = target
+    #         return dp_dict
+
+
+    #     return drug_targets_new
+
 
 
     def process_smiles2graph():
@@ -246,7 +335,6 @@ def load_drug_features():
         # np.save('./data/Drugs/drug_feature_graph.npy', drug_dict)
         return smilesgraph_dict
         
-    
     save_path = os.path.join(ROOT_DIR, 'data', 'drug_data')
     save_path = os.path.join(save_path, 'input_drug_data.npy')
     if not os.path.exists(save_path):
@@ -254,12 +342,14 @@ def load_drug_features():
         data_dicts['morgan_fingerprint'] = process_fingerprint()
         data_dicts['chemical_descriptor'] = process_ChemicalDescrpitor()
         data_dicts['drug_target'] = process_dpi()
+        data_dicts['drug_target_rwr'] = process_dpi_RWR()
+        data_dicts['drug_target_rwr'].columns = data_dicts['drug_target_rwr'].columns.values.astype(int)
         data_dicts['smiles2graph'] = process_smiles2graph()
         data_dicts['smiles2graph_TGSynergy'] = process_smiles2graph_TGSynergy()
+        #data_dicts['dpi_network'] = process_dpi_network()
         np.save(save_path, data_dicts)
     else:
         data_dicts = np.load(save_path,allow_pickle=True).item()
-
     return data_dicts
 
 if __name__ == "__main__":

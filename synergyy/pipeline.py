@@ -2,6 +2,7 @@
     A collection of full training and evaluation pipelines.
 """
 from logging import raiseExceptions
+from stringprep import in_table_a1
 import numpy as np 
 import pandas as pd
 import torch
@@ -19,7 +20,7 @@ from prepare_data import *
 from select_features import *
 from get_model import get_model
 from dataloader import dataloader, dataloader_graph, k_fold_trainer, k_fold_trainer_graph, evaluator, evaluator_graph,\
-    k_fold_trainer_graph_TGSynergy,evaluator_graph_TGSynergy
+    k_fold_trainer_graph_TGSynergy,evaluator_graph_TGSynergy, k_fold_trainer_graph_trans, evaluator_graph_trans
 from dataloader import SHAP
 import torch_geometric.data
 
@@ -125,6 +126,7 @@ def prepare_data(args):
             dim = drugFeature_dicts[feat_type].shape[0]
             temp_X_drug1 = np.zeros((synergy_df.shape[0], dim))
             temp_X_drug2 = np.zeros((synergy_df.shape[0], dim))
+            drugFeature_dicts['drug_target_rwr'].columns = drugFeature_dicts['drug_target_rwr'].columns.values.astype(int)
             for i in tqdm(range(synergy_df.shape[0])):
                 row = synergy_df.iloc[i]
                 temp_X_drug1[i,:] = drugFeature_dicts[feat_type][int(row['drug1'])]
@@ -147,10 +149,16 @@ def prepare_data(args):
         X_drug = X_drug_temp
     else:
         # in this case, drug feature is a numpy array instead of dict of arrays
+        # X_drug, X_drug1, X_drug2 = {}, {}, {}
+        # for feat_type in config['drug_omics']:
+        #     X_drug1[feat_type] = drug_mat_dict[feat_type+"_1"]
+        #     X_drug2[feat_type] = drug_mat_dict[feat_type+"_2"]
+        # X_drug['drug_1'] = np.concatenate(list(X_drug1.values()), axis=1)
+        # X_drug['drug_2'] = np.concatenate(list(X_drug2.values()), axis=1)
         X_drug = np.concatenate(list(X_drug_temp.values()), axis=1)
     
 
-    if config['get_drugfeature_concated'] == True:
+    if config['get_drugs_summed'] == True:
         print("drug features: ", X_drug.shape)
     else:
         print("drug features")
@@ -209,12 +217,16 @@ def training(X_cell, X_drug, Y, args):
         test_size = 0.9999 # 0.9999
     else:
         test_size = 0.2
+    
+    save_path = os.path.join(ROOT_DIR, 'results','processed_synergydf_%s.csv' % args.synergy_df)
+    processed_synergydf = pd.read_csv(save_path, index_col=0, sep=",")
+    dummy = np.array(processed_synergydf.index)
 # --------------- multitask dnn --------------- #
     if args.model == 'multitaskdnn_kim':
         
-        save_path = os.path.join(ROOT_DIR, 'results','processed_synergydf_%s.csv' % args.synergy_df)
-        processed_synergydf = pd.read_csv(save_path, index_col=0, sep=",")
-        dummy = np.array(processed_synergydf.index)
+        # save_path = os.path.join(ROOT_DIR, 'results','processed_synergydf_%s.csv' % args.synergy_df)
+        # processed_synergydf = pd.read_csv(save_path, index_col=0, sep=",")
+        # dummy = np.array(processed_synergydf.index)
 
         X_cell_trainval, X_cell_test, \
         X_fp_drug1_trainval, X_fp_drug1_test,\
@@ -258,9 +270,9 @@ def training(X_cell, X_drug, Y, args):
         
         X = np.concatenate([X_cell,X_drug], axis=1)
         #X_{}_trainval, X_{}_test, Y_{}_trainval, Y_{}_test, dummy_train, dummy_test(为了shap analysis)
-        save_path = os.path.join(ROOT_DIR, 'results','processed_synergydf_%s.csv' % args.synergy_df)
-        processed_synergydf = pd.read_csv(save_path, index_col=0, sep=",")
-        dummy = np.array(processed_synergydf.index)
+        # save_path = os.path.join(ROOT_DIR, 'results','processed_synergydf_%s.csv' % args.synergy_df)
+        # processed_synergydf = pd.read_csv(save_path, index_col=0, sep=",")
+        # dummy = np.array(processed_synergydf.index)
 
         X_trainval, X_test, Y_trainval, Y_test, _, dummy_test  = train_test_split(X, Y, dummy, test_size=test_size, random_state=42)
         save_path = os.path.join(ROOT_DIR, 'results','test_idx.txt')
@@ -279,16 +291,53 @@ def training(X_cell, X_drug, Y, args):
             net_weights = 'best_model_%s.pth' % args.model
         elif args.train_test_mode == 'train':
             net_weights = k_fold_trainer(train_val_dataset,model,args)
-   
+
+# --------------- transynergy --------------- #
+    elif args.model == 'transynergy_liu':
+        X=[]
+        for index, (d1, d2, cell) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell)):
+            array_tuple = (d1, d2, cell)
+            array = np.vstack(array_tuple)
+            t = torch.from_numpy(array).float()
+            X.append(t.float())
+
+        X_trainval, X_test, Y_trainval, Y_test, _, dummy_test  = train_test_split(X, Y, dummy, test_size=test_size, random_state=42)
+
+        # init model
+        model = get_model(args.model)
+        # src = batch.src.transpose(0, 1)
+        # trg = batch.trg.transpose(0, 1)
+        # trg_input = trg[:, :-1]
+        # src_mask, trg_mask = None, None
+        # preds = model(src, trg_input, src_mask, trg_mask)
+        # ys = trg[:, 1:].contiguous().view(-1)
+
+        # train_val set for k-fold, test set for testing
+        train_val_dataset, test_loader = dataloader_graph(X_trainval=X_trainval, X_test=X_test, Y_trainval=Y_trainval, Y_test=Y_test)
+
+        # load the best model
+        if args.train_test_mode == 'test':
+            net_weights = 'best_model_%s.pth' % args.model
+        elif args.train_test_mode == 'train':
+            net_weights = k_fold_trainer_graph_trans(train_val_dataset,model,args)
+
 # --------------- matchmaker --------------- #
     elif args.model == 'matchmaker_brahim':
         
+        text = args.drug_omics[0]
+        if args.get_drugfeature_concated == True:
+            text = "drug"
+
         X_cell_trainval, X_cell_test, \
         X_fp_drug1_trainval, X_fp_drug1_test,\
         X_fp_drug2_trainval, X_fp_drug2_test,\
-        Y_trainval, Y_test \
-        = train_test_split(X_cell, X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], Y, \
+        Y_trainval, Y_test, _, dummy_test\
+        = train_test_split(X_cell, X_drug[text+'_1'],X_drug[text+'_2'], Y, dummy,\
                                 test_size=test_size, random_state=42)
+
+        save_path = os.path.join(ROOT_DIR, 'results','test_idx.txt')
+        np.savetxt(save_path,dummy_test.astype(int), delimiter=',')
+
         #morgan_fingerprint_1,morgan_fingerprint_2
         ##chemical_descriptor_1,chemical_descriptor_2
 
@@ -384,12 +433,17 @@ def evaluate(model, model_weights, test_loader, train_val_dataset, args):
 
     elif args.model in ['deepdds_wang']:
 
-        actuals, predictions = evaluator_graph(model, model_weights,test_loader)
+        actuals, predictions, shap_df, features_df, expected_value = evaluator_graph(model, model_weights,test_loader)
+        #actuals, predictions = evaluator_graph(model, model_weights,test_loader)
 
     elif args.model in ['TGSynergy']:
         
-        actuals, predictions = evaluator_graph_TGSynergy(model, model_weights,test_loader)
+        actuals, predictions, shap_df, features_df, expected_value = evaluator_graph_TGSynergy(model, model_weights,train_val_dataset, test_loader, args)
+    
+    elif args.model in ['transynergy_liu']:
         
+        actuals, predictions, shap_df, features_df, expected_value = evaluator_graph_trans(model, model_weights,train_val_dataset, test_loader, args)
+
     else:
         actuals, predictions, shap_df, features_df, expected_value  = evaluator(model, model_weights,train_val_dataset, test_loader, args)
 

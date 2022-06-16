@@ -41,8 +41,14 @@ def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, m
         
         return selected_genes
 
+    def filter_by_2000_genes():
+        # following is copied from prepare_data
+        data_dicts = np.load(os.path.join(ROOT_DIR, 'data', 'drug_data','input_drug_data.npy'),allow_pickle=True).item()
+        selected_genes = data_dicts['drug_target_rwr'].index
+        return selected_genes
+
     # select genes based on criterion (variance or STRING)
-    function_mapping = {'variance':'filter_by_variance', 'STRING':'filter_by_706_genes'}
+    function_mapping = {'variance':'filter_by_variance', 'STRING':'filter_by_706_genes', 'dti':'filter_by_2000_genes'}
     selected_genes = locals()[function_mapping[cell_filtered_by]]()
 
 
@@ -57,6 +63,8 @@ def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, m
 
         trimmed_type_df = type_df.loc[selected_rows, selected_cols]
         trimmed_type_df.dropna(axis=0, how='any',inplace=True)
+        trimmed_type_df = trimmed_type_df[~trimmed_type_df.index.duplicated(keep='first')]
+
         CCLE_dicts[ccle_type] = trimmed_type_df
                 
         # if integrate is True, then the return value is a dataframe

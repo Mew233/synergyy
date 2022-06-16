@@ -3,8 +3,9 @@ import os
 import pandas as pd
 import argparse
 import networkx as nx
-
-
+import time
+from sklearn.preprocessing import StandardScaler
+import torch.nn as nn
 from rdkit import Chem
 import numpy as np
 import pandas as pd
@@ -238,6 +239,260 @@ def smile_to_graph(smile):
     return graph
 
 
+# -------------------------------------------
+## pyNBS for prepare_data for transynergy
+
+def normalize_network(network, symmetric_norm=False):
+    adj_mat = nx.adjacency_matrix(network)
+    adj_array = np.array(adj_mat.todense())
+    if symmetric_norm:
+        D = np.diag(1/np.sqrt(sum(adj_array)))
+        adj_array_norm = np.dot(np.dot(D, adj_array), D)
+    else:
+        degree = sum(adj_array)
+        adj_array_norm = (adj_array*1.0/degree).T
+    return adj_array_norm
+# Closed form random-walk propagation (as seen in HotNet2) for each subgraph: Ft = (1-alpha)*Fo * (I-alpha*norm_adj_mat)^-1
+# Concatenate to previous set of subgraphs
+def fast_random_walk(alpha, binary_mat, subgraph_norm, prop_data_prev):
+    term1=(1-alpha)*binary_mat
+    term2=np.identity(binary_mat.shape[1])-alpha*subgraph_norm
+    term2_inv = np.linalg.inv(term2)
+    subgraph_prop = np.dot(term1, term2_inv)
+    prop_data_add = np.concatenate((prop_data_prev, subgraph_prop), axis=1)
+    return prop_data_add
+
+# Wrapper for random walk propagation of full network by subgraphs
+# Implementation is based on the closed form of the random walk model over networks presented by the HotNet2 paper
+def network_propagation(network, binary_matrix, alpha=0.7, symmetric_norm=False, verbose=True, **save_args):                        
+    # Parameter error check
+    alpha = float(alpha)
+    if alpha <= 0.0 or alpha >= 1.0:
+        raise ValueError('Alpha must be a value between 0 and 1')
+    # Begin network propagation
+    starttime=time.time()
+    if verbose:
+        print('Performing network propagation with alpha:', alpha)
+    # Separate network into connected components and calculate propagation values of each sub-sample on each connected component
+    #subgraphs = list(nx.connected_component_subgraphs(network))
+    A = (network.subgraph(c) for c in nx.connected_components(network))
+    subgraphs = list(A)
+
+    # Initialize propagation results by propagating first subgraph
+    subgraph = subgraphs[0]
+    subgraph_nodes = list(subgraph.nodes)
+    prop_data_node_order = list(subgraph_nodes)
+    #binary_matrix_filt = np.array(binary_matrix.T.loc[subgraph_nodes].fillna(0).T)
+    binary_matrix_filt = np.array(binary_matrix.T.reindex(columns=subgraph_nodes).fillna(0).T)
+    #binary_matrix_filt = np.array(binary_matrix.T.fillna(0).T)
+    subgraph_norm = normalize_network(subgraph, symmetric_norm=symmetric_norm)
+    prop_data_empty = np.zeros((binary_matrix_filt.shape[0], 1))
+    prop_data = fast_random_walk(alpha, binary_matrix_filt, subgraph_norm, prop_data_empty)
+    # Get propagated results for remaining subgraphs
+    for subgraph in subgraphs[1:]:
+        subgraph_nodes = list(subgraph.nodes)
+        prop_data_node_order = prop_data_node_order + subgraph_nodes
+        #binary_matrix_filt = np.array(binary_matrix.T.loc[subgraph_nodes].fillna(0).T)
+        binary_matrix_filt = np.array(binary_matrix.T.reindex(columns=subgraph_nodes).fillna(0).T)
+        subgraph_norm = normalize_network(subgraph, symmetric_norm=symmetric_norm)
+        prop_data = fast_random_walk(alpha, binary_matrix_filt, subgraph_norm, prop_data)
+    # Return propagated result as dataframe
+    prop_data_df = pd.DataFrame(data=prop_data[:,1:], index = binary_matrix.index, columns=prop_data_node_order)
+    if verbose:
+        print('Network Propagation Complete:', time.time()-starttime, 'seconds')              
+    return prop_data_df
+
+# Wrapper for propagating binary mutation matrix over network by subgraph given network propagation kernel
+# The network propagation kernel can be pre-computed using the network_propagation function and a identity matrix data frame of the network
+# Pre-calculating the kernel for many runs of NBS saves a significant amount of time
+def network_kernel_propagation(network, network_kernel, binary_matrix, verbose=False, **save_args):
+    if verbose:
+        print('Performing network propagation with network kernel')
+    # Separate network into connected components and calculate propagation values of each sub-sample on each connected component
+    subgraph_nodelists = list(nx.connected_components(network))
+    # Initialize propagation results by propagating first subgraph
+    prop_nodelist = list(subgraph_nodelists[0])
+    prop_data = np.dot(binary_matrix.T.loc[prop_nodelist].fillna(0).T, 
+                       network_kernel.loc[prop_nodelist][prop_nodelist])
+    # Get propagated results for remaining subgraphs
+    for nodelist in subgraph_nodelists[1:]:
+        subgraph_nodes = list(nodelist)
+        prop_nodelist = prop_nodelist + subgraph_nodes
+        subgraph_prop_data = np.dot(binary_matrix.T.loc[subgraph_nodes].fillna(0).T, 
+                                    network_kernel.loc[subgraph_nodes][subgraph_nodes])
+        prop_data = np.concatenate((prop_data, subgraph_prop_data), axis=1)
+    # Return propagated result as dataframe
+    prop_data_df = pd.DataFrame(data=prop_data, index = binary_matrix.index, columns=prop_nodelist)
+    return prop_data_df
+
+
+def standarize_dataframe(df, with_mean = True):
+
+    scaler = StandardScaler(with_mean=with_mean)
+    scaler.fit(df.values.reshape(-1,1))
+    for col in df.columns:
+        df.loc[:, col] = scaler.transform(df.loc[:, col].values.reshape(-1,1))
+    return df
+
+
+#=====================transynergy=========================
+import torch.nn.functional as F
+import math
+
+class EncoderLayer(nn.Module):
+    def __init__(self, d_input, d_model, heads, dropout=0.1):
+        super().__init__()
+        self.input_linear = nn.Linear(d_input, d_model)
+        self.norm_1 = Norm(d_model)
+        self.norm_2 = Norm(d_model)
+        self.attn = MultiHeadAttention(heads, d_model, dropout=dropout)
+        self.ff = FeedForward(d_model, dropout=dropout)
+        self.dropout_1 = nn.Dropout(dropout)
+        self.dropout_2 = nn.Dropout(dropout)
+
+    def forward(self, x, mask=None):
+
+        x = F.relu(self.input_linear(x))
+        x2 = self.norm_1(x)
+        x = x + self.dropout_1(self.attn(x2, x2, x2, mask))
+        x2 = self.norm_2(x)
+        x = x + self.dropout_2(self.ff(x2))
+        return x
+
+
+# build a decoder layer with two multi-head attention layers and
+# one feed-forward layer
+class DecoderLayer(nn.Module):
+    def __init__(self, d_input, d_model, heads, dropout=0.1):
+        super().__init__()
+        self.input_linear = nn.Linear(d_input, d_model)
+        self.norm_1 = Norm(d_model)
+        self.norm_2 = Norm(d_model)
+        self.norm_3 = Norm(d_model)
+
+        self.dropout_1 = nn.Dropout(dropout)
+        self.dropout_2 = nn.Dropout(dropout)
+        self.dropout_3 = nn.Dropout(dropout)
+
+        self.attn_1 = MultiHeadAttention(heads, d_model, dropout=dropout)
+        self.attn_2 = MultiHeadAttention(heads, d_model, dropout=dropout)
+        self.ff = FeedForward(d_model, dropout=dropout)
+
+    def forward(self, x, e_outputs, src_mask=None, trg_mask=None):
+        x = F.relu(self.input_linear(x))
+        x2 = self.norm_1(x)
+        x = x + self.dropout_1(self.attn_1(x2, x2, x2, trg_mask))
+        x2 = self.norm_2(x)
+        x = x + self.dropout_2(self.attn_2(x2, e_outputs, e_outputs, src_mask))
+        x2 = self.norm_3(x)
+        x = x + self.dropout_3(self.ff(x2))
+        return x
+
+class Norm(nn.Module):
+    def __init__(self, d_model, eps=1e-6):
+        super().__init__()
+
+        self.size = d_model
+
+        # create two learnable parameters to calibrate normalisation
+        self.alpha = nn.Parameter(torch.ones(self.size))
+        self.bias = nn.Parameter(torch.zeros(self.size))
+
+        self.eps = eps
+
+    def forward(self, x):
+        norm = self.alpha * (x - x.mean(dim=-1, keepdim=True)) \
+               / (x.std(dim=-1, keepdim=True) + self.eps) + self.bias
+        return norm
+
+
+def attention(q, k, v, d_k, mask=None, dropout=None):
+    scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(d_k)
+
+    if mask is not None:
+        mask = mask.unsqueeze(1)
+        scores = scores.masked_fill(mask == 0, -1e9)
+
+    scores = F.softmax(scores, dim=-1)
+
+    if dropout is not None:
+        scores = dropout(scores)
+
+    output = torch.matmul(scores, v)
+    return output
+
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self, heads, d_model, dropout=0.1):
+        super().__init__()
+
+        self.d_model = d_model
+        self.d_k = d_model // heads
+        self.h = heads
+
+        self.q_linear = nn.Linear(d_model, d_model)
+        self.v_linear = nn.Linear(d_model, d_model)
+        self.k_linear = nn.Linear(d_model, d_model)
+
+        self.dropout = nn.Dropout(dropout)
+        self.out = nn.Linear(d_model, d_model)
+
+    def forward(self, q, k, v, mask=None):
+        bs = q.size(0)
+
+        # perform linear operation and split into N heads
+        k = self.k_linear(k).view(bs, -1, self.h, self.d_k)
+        q = self.q_linear(q).view(bs, -1, self.h, self.d_k)
+        v = self.v_linear(v).view(bs, -1, self.h, self.d_k)
+
+        # transpose to get dimensions bs * N * sl * d_model
+        k = k.transpose(1, 2)
+        q = q.transpose(1, 2)
+        v = v.transpose(1, 2)
+
+        # calculate attention using function we will define next
+        scores = attention(q, k, v, self.d_k, mask, self.dropout)
+        # concatenate heads and put through final linear layer
+        concat = scores.transpose(1, 2).contiguous() \
+            .view(bs, -1, self.d_model)
+        output = self.out(concat)
+
+        return output
+
+
+class FeedForward(nn.Module):
+    def __init__(self, d_model, d_ff=512, dropout=0.1):
+        super().__init__()
+
+        # We set d_ff as a default to 2048
+        self.linear_1 = nn.Linear(d_model, d_ff)
+        self.dropout = nn.Dropout(dropout)
+        self.linear_2 = nn.Linear(d_ff, d_model)
+
+    def forward(self, x):
+        x = self.dropout(F.relu(self.linear_1(x)))
+        x = self.linear_2(x)
+        return x
+
+class OutputFeedForward(nn.Module):
+
+    def __init__(self, H, W, d_layers = None, dropout=0.1):
+
+        super().__init__()
+
+        self.d_layers = [512, 1] if d_layers is None else d_layers
+        self.linear_1 = nn.Linear(H*W, self.d_layers[0])
+        self.n_layers = len(self.d_layers)
+        self.dropouts = nn.ModuleList(nn.Dropout(dropout) for _ in range(1, self.n_layers))
+        self.layers = nn.ModuleList(nn.Linear(d_layers[i-1], d_layers[i]) for i in range(1, self.n_layers))
+
+    def forward(self, x):
+
+        x = self.linear_1(x)
+        for i in range(self.n_layers-1):
+            x = self.dropouts[i](F.relu(x))
+            x = self.layers[i](x)
+        return x
 
 if __name__ == "__main__":
     # configuration_from_json()

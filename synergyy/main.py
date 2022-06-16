@@ -17,13 +17,13 @@ def arg_parse():
                         help='batch size (default: 256)')
     parser.add_argument('--epochs', type=int, default=50,
                         help='maximum number of epochs (default: 50)')
-    parser.add_argument('--train_test_mode', type=str, default='train',
+    parser.add_argument('--train_test_mode', type=str, default='test',
                         help='train or test')
     parser.add_argument('--SHAP_analysis', type=bool, default=False)
-    parser.add_argument('--model', type=str, default='deepsynergy_preuer',
-                        help='import model (default: deepsynergy_preuer)')
+    parser.add_argument('--model', type=str, default='transynergy_liu',
+                        help='import model (default: multitaskdnn_kim)')
                         #options are 'LR','XGBOOST','RF','ERT','deepsynergy_preuer','multitaskdnn_kim',
-                        # 'matchmaker_brahim','deepdds_wang','TGSynergy)
+                        # 'matchmaker_brahim','deepdds_wang','TGSynergy','transynergy_liu')
 
 # --------------- Parse configuration  --------------- #
 
@@ -31,19 +31,20 @@ def arg_parse():
                         help = 'DrugComb or Sanger2022')
     parser.add_argument('--external_validation', type=bool, default=False,
                         required=False, help = 'True for Sanger2022')
-    parser.add_argument('--drug_omics', nargs="+", default=['morgan_fingerprint'],
-                        required=False, help='drug_target/morgan_fingerprint/smiles2graph/smiles2graph_TGSynergy/chemical_descriptor')    
+    parser.add_argument('--drug_omics', nargs="+", default=['drug_target_rwr'],
+                        required=False, help='drug_target/drug_target_rwr/morgan_fingerprint\
+                            /smiles2graph/smiles2graph_TGSynergy/chemical_descriptor')    
     parser.add_argument('--cell_df', type=str, default='CCLE',
                         help='CCLE')
     parser.add_argument('--cell_omics', nargs="+", default=['exp'],
                         required=False, help='"exp","cn","mut","GNN_cell')
-    parser.add_argument('--cell_filtered_by', type=str, default='variance',
-                        required=False,help='top genes selected by variance or STRING graph')
+    parser.add_argument('--cell_filtered_by', type=str, default='dti',
+                        required=False,help='top genes selected by variance or STRING graph or dti(for Transynergy)')
     parser.add_argument('--get_cellfeature_concated', type=bool, default=True,
                         required=False)
-    parser.add_argument('--get_drugfeature_concated', type=bool, default=True,
+    parser.add_argument('--get_drugfeature_concated', type=bool, default=False,
                         required=False, help='if concat, numpy array')
-    parser.add_argument('--get_drugs_summed', type=bool, default=True,
+    parser.add_argument('--get_drugs_summed', type=bool, default=False,
                         required=False, help='drug1+drug2 if True, else return dict')
 
     return parser.parse_args()
