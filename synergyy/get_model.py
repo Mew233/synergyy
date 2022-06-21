@@ -20,7 +20,7 @@ def get_model(model_name,*args):
     
     if model_name is "transynergy_liu":
 
-        return Transynergy_Liu(d_input=2750, d_model=200, n_feature_type=3*3, N=1, heads=8, dropout=0.2)
+        return Transynergy_Liu(d_input=2750, d_model=256, n_feature_type=3, N=1, heads=8, dropout=0.2)
         #return Transynergy_Liu(setting.d_input, setting.d_model, setting.n_feature_type, setting.n_layers, setting.attention_heads, setting.attention_dropout)
     if model_name is "multitaskdnn_kim":
 

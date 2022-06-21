@@ -476,15 +476,18 @@ class FeedForward(nn.Module):
 
 class OutputFeedForward(nn.Module):
 
-    def __init__(self, H, W, d_layers = None, dropout=0.1):
+    def __init__(self, H, W, d_layers = None, dropout=0.2):
 
         super().__init__()
 
         self.d_layers = [512, 1] if d_layers is None else d_layers
-        self.linear_1 = nn.Linear(H*W, self.d_layers[0])
+        # self.linear_1 = nn.Linear(H*W, self.d_layers[0])
+        self.linear_1 = nn.Linear(768, self.d_layers[0])
         self.n_layers = len(self.d_layers)
         self.dropouts = nn.ModuleList(nn.Dropout(dropout) for _ in range(1, self.n_layers))
         self.layers = nn.ModuleList(nn.Linear(d_layers[i-1], d_layers[i]) for i in range(1, self.n_layers))
+
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
 
@@ -492,6 +495,8 @@ class OutputFeedForward(nn.Module):
         for i in range(self.n_layers-1):
             x = self.dropouts[i](F.relu(x))
             x = self.layers[i](x)
+        
+        x = self.sigmoid(x)
         return x
 
 if __name__ == "__main__":
