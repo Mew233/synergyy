@@ -10,19 +10,23 @@ The user can freely include new datasets, and select preferential cell/drug feat
 ```bash
 # Unzip 
 unzip synergyy.zip
-
 cd synergyy/
 
 #create conda environment
-conda env create --name synergyy --file=environments.yml
-
+conda env create --name synergyy --file=environment.yml
 conda activate synergyy
+#To install for PyTorch 1.10.0, simply run on your mac
+pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-1.10.0+${cpu}.html
+pip install torch-geometric -f https://pytorch-geometric.com/whl/torch-1.10.0+${cpu}.html
+pip install torch-cluster -f https://pytorch-geometric.com/whl/torch-1.10.0+${cpu}.html 
+pip install torch-sparse -f https://pytorch-geometric.com/whl/torch-1.10.0+${cpu}.html 
+pip install torch-spline-conv -f https://pytorch-geometric.com/whl/torch-1.10.0+${cpu}.html
 
 #install synergyy
 pip install -e .
 
 #Please download data/ and put it in the same path as setup.py
-#https://drive.google.com/drive/folders/1Uu0YZSxX8GQtV_4ZJmsMrbanmse-Dq6n?usp=sharing
+https://drive.google.com/drive/folders/1Uu0YZSxX8GQtV_4ZJmsMrbanmse-Dq6n?usp=sharing
 
 ```
 ****

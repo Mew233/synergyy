@@ -18,7 +18,6 @@ from torch_geometric import data as DATA
 import random
 import pandas as pd
 import shap as sp
-from dig.xgraph.method import SubgraphX
 
 torch.manual_seed(42)
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))

@@ -409,7 +409,10 @@ def training(X_cell, X_drug, Y, args):
             X_cell_trainval=X_cell_trainval, X_cell_test=X_cell_test,\
             Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval=dummy_trainval, dummy_test=dummy_test
                 )
-    
+        
+        save_path = os.path.join(ROOT_DIR, 'results','test_idx.txt')
+        np.savetxt(save_path,dummy_test.astype(int), delimiter=',')
+        
     # init model
         save_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','cluster_predefine_PPI_0.95.npy')
         cluster_predefine = np.load(save_path, allow_pickle=True).item()
