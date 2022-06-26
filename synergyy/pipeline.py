@@ -420,7 +420,7 @@ def training(X_cell, X_drug, Y, args):
             net_weights = 'best_model_%s.pth' % args.model
         elif args.train_test_mode == 'train':
             net_weights = k_fold_trainer_graph_TGSynergy(train_val_dataset,model,args)
-    
+
     return model, net_weights, test_loader, train_val_dataset
 
 

@@ -325,15 +325,30 @@ def network_kernel_propagation(network, network_kernel, binary_matrix, verbose=F
     prop_data_df = pd.DataFrame(data=prop_data, index = binary_matrix.index, columns=prop_nodelist)
     return prop_data_df
 
+import scipy.stats as stats
+def standarize_dataframe(data, with_mean = True):
 
-def standarize_dataframe(df, with_mean = True):
+    # scaler = StandardScaler(with_mean=with_mean)
+    # scaler.fit(df.values.reshape(-1,1))
+    # for col in df.columns:
+    #     df.loc[:, col] = np.tanh(scaler.transform(df.loc[:, col].values.reshape(-1,1)))
+    
+    df = data.T
+    df_out = df.copy(deep=True)
+    dic = {}
+    # Sort each gene's propagation value for each patient
+    for col in df:
+        dic.update({col:sorted(df[col])})
+    sorted_df = pd.DataFrame(dic)
+    # Rank averages for each gene across samples
+    ranked_avgs = sorted_df.mean(axis = 1).tolist()
+    # Construct quantile normalized Pandas DataFrame by assigning ranked averages to ranks of each gene for each sample
+    for col in df_out:
+        t = stats.rankdata(df[col]).astype(int)
+        df_out[col] = [ranked_avgs[i-1] for i in t]
+    qnorm_data = df_out.T
 
-    scaler = StandardScaler(with_mean=with_mean)
-    scaler.fit(df.values.reshape(-1,1))
-    for col in df.columns:
-        df.loc[:, col] = scaler.transform(df.loc[:, col].values.reshape(-1,1))
-    return df
-
+    return qnorm_data
 
 #=====================transynergy=========================
 import torch.nn.functional as F

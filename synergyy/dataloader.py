@@ -101,6 +101,11 @@ def k_fold_trainer(dataset,model,args):
     # Start print
     print('--------------------------------')
 
+    # save 5-fold evalutation results for meta classifier
+    meta_clf_pred = []
+    meta_clf_acts = []
+    meta_clf_index = []
+
     # K-fold Cross Validation model evaluation
     for fold, (train_ids, test_ids) in enumerate(kfold.split(dataset)):
         # Print
@@ -139,8 +144,6 @@ def k_fold_trainer(dataset,model,args):
                 # forward + backward + optimize
                 if args.model == 'deepsynergy_preuer':
                     outputs = network(inputs[0])
-                elif args.model == 'transynergy_liu':
-                    outputs = network(inputs[0])
                 elif args.model == 'matchmaker_brahim':
                     outputs = network(inputs[0],inputs[1],inputs[2])
                 elif args.model == 'multitaskdnn_kim':
@@ -168,8 +171,6 @@ def k_fold_trainer(dataset,model,args):
                 inputs, labels = data[:-1], data[-1]
                 if args.model == 'deepsynergy_preuer':
                     outputs = network(inputs[0])
-                elif args.model == 'transynergy_liu':
-                    outputs = network(inputs[0])
                 elif args.model == 'matchmaker_brahim':
                     outputs = network(inputs[0],inputs[1],inputs[2])
                 elif args.model == 'multitaskdnn_kim':
@@ -183,11 +184,21 @@ def k_fold_trainer(dataset,model,args):
                 # store the values in respective lists
                 predictions.append(list(outputs))
                 actuals.append(list(actual))
+            
+            idx = list()
+            batch_sampler = valloader.batch_sampler
+            for i, batch_indices in enumerate(batch_sampler):
+                idx.append(batch_indices)
 
         actuals = [val for sublist in np.vstack(list(chain(*actuals))) for val in sublist]
         predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
-        
+        idx = [val for sublist in np.vstack(list(chain(*idx))) for val in sublist]
+
         auc = roc_auc_score(y_true=actuals, y_score=predictions)
+
+        meta_clf_pred.append(predictions)
+        meta_clf_acts.append(actuals)
+        meta_clf_index.append(idx)
 
         # Print accuracy
         print(f'Accuracy for fold %d: %.4f' % (fold, auc))
@@ -210,6 +221,18 @@ def k_fold_trainer(dataset,model,args):
 
     #network = model.load_state_dict(torch.load('best_model_%s.pth' % args.model))
     network_weights = 'best_model_%s.pth' % args.model
+
+    # save 5-fold evaluation results
+
+
+    meta_clf_index = [val for sublist in np.vstack(list(chain(*meta_clf_index))) for val in sublist]
+    meta_clf_acts = [val for sublist in np.vstack(list(chain(*meta_clf_acts))) for val in sublist]
+    meta_clf_pred = [val for sublist in np.vstack(list(chain(*meta_clf_pred))) for val in sublist]
+
+    saveddf = pd.DataFrame(np.column_stack([meta_clf_index,meta_clf_acts,meta_clf_pred]),\
+                columns=['index','actuals','metapredicts_%s' % args.model])
+    save_path = os.path.join(ROOT_DIR, 'results','meta_clf','metapredicts_%s_%s.txt' % (args.model, args.synergy_df))
+    saveddf.to_csv(save_path, header=True, index=True, sep=",")
 
     return network_weights
 
@@ -573,6 +596,12 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
     trainval_df = [train_val_dataset_input,train_val_dataset_target]
     trainval_df = pd.DataFrame(trainval_df).T
 
+
+    # save 5-fold evalutation results for meta classifier
+    meta_clf_pred = []
+    meta_clf_acts = []
+    meta_clf_index = []
+
     for fold, (train_ids, test_ids) in enumerate(kfold.split(trainval_df)):
         # Print
         print(f'FOLD {fold}')
@@ -638,6 +667,7 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
 
             # print('Starting validation')
 
+
         # Evaluation for this fold
         with torch.no_grad():
             predictions, actuals = list(), list()
@@ -660,12 +690,23 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
                 predictions.append(list(outputs))
                 actuals.append(list(actual))
 
+            idx = list()
+            batch_sampler = valloader.batch_sampler
+            for i, batch_indices in enumerate(batch_sampler):
+                idx.append(batch_indices)
+
         actuals = [val for sublist in np.vstack(list(chain(*actuals))) for val in sublist]
         predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
+        idx = [val for sublist in np.vstack(list(chain(*idx))) for val in sublist]
+
         try:
             auc = roc_auc_score(y_true=actuals, y_score=predictions)
         except ValueError:
             auc = 0
+
+        meta_clf_pred.append(predictions)
+        meta_clf_acts.append(actuals)
+        meta_clf_index.append(idx)
 
         # Print accuracy
         print(f'Accuracy for fold %d: %f' % (fold, auc))
@@ -686,7 +727,19 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
         sum += value
     print(f'Average: {sum/len(results.items())}')
 
-    return network
+    network_weights = 'best_model_%s.pth' % args.model
+
+    # save 5-fold evaluation results
+    meta_clf_acts = [val for sublist in np.vstack(list(chain(*meta_clf_acts))) for val in sublist]
+    meta_clf_pred = [val for sublist in np.vstack(list(chain(*meta_clf_pred))) for val in sublist]
+    meta_clf_index = [val for sublist in np.vstack(list(chain(*meta_clf_index))) for val in sublist]
+
+    saveddf = pd.DataFrame(np.column_stack([meta_clf_index,meta_clf_acts,meta_clf_pred]),\
+                columns=['index','actuals','metapredicts_%s' % args.model])
+    save_path = os.path.join(ROOT_DIR, 'results','meta_clf','metapredicts_%s_%s.txt' % (args.model, args.synergy_df))
+    saveddf.to_csv(save_path, header=True, index=True, sep=",")
+
+    return network_weights
 
 def SHAP(model, model_weights,train_val_dataset, test_loader,args):
     ####################

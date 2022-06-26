@@ -6,6 +6,7 @@ import torch.nn as nn
 from utilitis import EncoderLayer, DecoderLayer, Norm, OutputFeedForward
 import copy
 from torch import flatten
+import torch.nn.functional as F
 
 def get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
@@ -46,26 +47,18 @@ class Transynergy_Liu(nn.Module):
         self.decoder = Decoder(d_input, d_model, N, heads, dropout)
         self.out = OutputFeedForward(d_model, n_feature_type, d_layers=[512, 1])
 
-        # self.regression_classify = nn.Sequential(
-        #     nn.Linear(600, 512),
-        #     nn.ELU(),
-        #     nn.Dropout(p=0.2),
-        #     nn.Linear(512, 512),
-        #     nn.ELU(),
-        #     nn.Dropout(p=0.2),  
-        #     nn.Linear(512, 1),
-        #     nn.Sigmoid()
-        # )
+        self.input_linear = nn.Linear(d_input, d_model)
+        self.norm_1 = Norm(d_model)
 
     def forward(self, src, trg=None, src_mask=None, trg_mask=None):
         e_outputs = self.encoder(src, src_mask)
-        #print("DECODER")
-        #d_output = self.decoder(trg, e_outputs, src_mask, trg_mask)
-        #flat_d_output = d_output.view(-1, d_output.size(-2)*d_output.size(-1))
-        #output = self.out(flat_d_output)
         flat_e_output = e_outputs.view(-1, e_outputs.size(-2)*e_outputs.size(-1))
-        e_outputs = self.out(flat_e_output)
-        output = e_outputs
+        output = self.out(flat_e_output)
+
+        #flat_src_output = src.view(-1, src.size(-2)*src.size(-1))
+        # x = F.relu(self.input_linear(src))
+        # x2 = x.view(-1, x.size(-2)*x.size(-1))
+        # output = self.out(x2)
         return output
 
 

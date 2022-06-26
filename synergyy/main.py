@@ -1,5 +1,5 @@
 import os
-os.environ["OMP_NUM_THREADS"] = "4"
+os.environ["OMP_NUM_THREADS"] = "8"
 import argparse
 from prepare_data import *
 from select_features import *
@@ -17,7 +17,7 @@ def arg_parse():
                         help='batch size (default: 256)')
     parser.add_argument('--epochs', type=int, default=50,
                         help='maximum number of epochs (default: 50)')
-    parser.add_argument('--train_test_mode', type=str, default='test',
+    parser.add_argument('--train_test_mode', type=str, default='train',
                         help='train or test')
     parser.add_argument('--SHAP_analysis', type=bool, default=False)
     parser.add_argument('--model', type=str, default='transynergy_liu',

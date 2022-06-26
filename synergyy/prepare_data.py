@@ -350,6 +350,14 @@ def load_drug_features():
         np.save(save_path, data_dicts)
     else:
         data_dicts = np.load(save_path,allow_pickle=True).item()
+        #data_dicts['drug_target_rwr'] = process_dpi_RWR()
+        #data_dicts['drug_target_rwr'].columns = data_dicts['drug_target_rwr'].columns.values.astype(int)
+
+        selected_genes = data_dicts['drug_target_rwr'].index
+        a = data_dicts['drug_target']
+        a = a.loc[a.index.isin(list(selected_genes)), :]
+        data_dicts['drug_target'] = a
+       
     return data_dicts
 
 if __name__ == "__main__":
