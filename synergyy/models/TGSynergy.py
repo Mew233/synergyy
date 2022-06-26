@@ -152,9 +152,9 @@ class TGSynergy(nn.Module):
             nn.Linear(512, 256)
         )
 
-    def forward(self, inputs):
+    def forward(self, drug, drug2, cell):
 
-        drug, drug2, cell = inputs[0], inputs[1], inputs[2]
+        #drug, drug2, cell = inputs[0], inputs[1], inputs[2]
         # forward drug
         x_drug = self.GNN_drug(drug)
         x_drug = self.drug_emb(x_drug)

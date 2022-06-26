@@ -114,7 +114,7 @@ def k_fold_trainer(dataset,model,args):
         # Sample elements randomly from a given list of ids, no replacement.
         train_subsampler = torch.utils.data.SubsetRandomSampler(train_ids)
         test_subsampler = torch.utils.data.SubsetRandomSampler(test_ids)
-        
+
         trainloader = DataLoader(dataset, batch_size=batch_size, sampler=train_subsampler)
         valloader = DataLoader(dataset,batch_size=batch_size, sampler=test_subsampler)
 
@@ -249,7 +249,7 @@ class MyDataset(TensorDataset):
     def __getitem__(self, index):
         
         #drug1, drug2, cell, target
-        return (self.df.iloc[index,0], self.df.iloc[index,1], self.df.iloc[index,2], self.df.iloc[index,3])
+        return (self.df.loc[index,0], self.df.loc[index,1], self.df.loc[index,2], self.df.loc[index,3], self.df.loc[index,4])
 
 def k_fold_trainer_graph(temp_loader_trainval,model,args):
 
@@ -260,7 +260,7 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
 
     # Configuration options
     k_folds = 5
-    num_epochs = 50
+    num_epochs = args.epochs
     batch_size = 256
 
     loss_function = nn.BCELoss()
@@ -416,10 +416,11 @@ def k_fold_trainer_graph_TGSynergy(temp_loader_trainval,model,args):
     train_val_dataset_drug2 = temp_loader_trainval[1]
     train_val_dataset_cell = temp_loader_trainval[2]
     train_val_dataset_target = temp_loader_trainval[3].tolist()
+    train_val_dataset_index = temp_loader_trainval[4].tolist()
 
     # Configuration options
     k_folds = 5
-    num_epochs = 50
+    num_epochs = args.epochs
     batch_size = 256
 
     loss_function = nn.BCELoss()
@@ -434,8 +435,13 @@ def k_fold_trainer_graph_TGSynergy(temp_loader_trainval,model,args):
     # K-fold Cross Validation model evaluation
     # for fold, (train_ids, test_ids) in enumerate(skf.split(X,y)):
     
-    trainval_df = [train_val_dataset_drug,train_val_dataset_drug2,train_val_dataset_cell,train_val_dataset_target]
+    trainval_df = [train_val_dataset_drug,train_val_dataset_drug2,train_val_dataset_cell,train_val_dataset_target,train_val_dataset_index]
     trainval_df = pd.DataFrame(trainval_df).T
+
+    # save 5-fold evalutation results for meta classifier
+    meta_clf_pred = []
+    meta_clf_acts = []
+    meta_clf_index = []
 
     for fold, (train_ids, test_ids) in enumerate(kfold.split(trainval_df)):
         # Print
@@ -484,6 +490,7 @@ def k_fold_trainer_graph_TGSynergy(temp_loader_trainval,model,args):
                 
                 targets = data_target.unsqueeze(1)
                                 
+                data_index = data[4]
 
                 # Zero the gradients
                 optimizer.zero_grad()
@@ -508,6 +515,7 @@ def k_fold_trainer_graph_TGSynergy(temp_loader_trainval,model,args):
         # Evaluation for this fold
         with torch.no_grad():
             predictions, actuals = list(), list()
+            idx = list()
 
             for i, data in enumerate(valloader):
                 data1 = data[0]
@@ -518,6 +526,8 @@ def k_fold_trainer_graph_TGSynergy(temp_loader_trainval,model,args):
 
                 targets = data_target
 
+                data_index = data[4]
+
                 # forward + backward + optimize
                 outputs = network(drug, drug2, cell)
                 outputs = outputs.squeeze(1)
@@ -526,16 +536,27 @@ def k_fold_trainer_graph_TGSynergy(temp_loader_trainval,model,args):
                 # actual output
                 actual = targets.numpy()
                 actual = actual.reshape(len(actual), 1)
+
+                indices = data_index.numpy()
+                indices = indices.reshape(len(indices), 1)
+
                 # store the values in respective lists
                 predictions.append(list(outputs))
                 actuals.append(list(actual))
+                idx.append(list(indices))
 
         actuals = [val for sublist in np.vstack(list(chain(*actuals))) for val in sublist]
         predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
+        idx = [val for sublist in np.vstack(list(chain(*idx))) for val in sublist]
+        
         try:
             auc = roc_auc_score(y_true=actuals, y_score=predictions)
         except ValueError:
             auc = 0
+
+        meta_clf_pred.append(predictions)
+        meta_clf_acts.append(actuals)
+        meta_clf_index.append(idx)
 
         # Print accuracy
         print(f'Accuracy for fold %d: %f' % (fold, auc))
@@ -556,25 +577,38 @@ def k_fold_trainer_graph_TGSynergy(temp_loader_trainval,model,args):
         sum += value
     print(f'Average: {sum/len(results.items())}')
 
-    return network
+    network_weights = 'best_model_%s.pth' % args.model
+
+    # save 5-fold evaluation results
+    meta_clf_acts = [val for sublist in np.vstack(list(chain(*meta_clf_acts))) for val in sublist]
+    meta_clf_pred = [val for sublist in np.vstack(list(chain(*meta_clf_pred))) for val in sublist]
+    meta_clf_index = [val for sublist in np.vstack(list(chain(*meta_clf_index))) for val in sublist]
+
+    saveddf = pd.DataFrame(np.column_stack([meta_clf_index,meta_clf_acts,meta_clf_pred]),\
+                columns=['index','actuals','metapredicts_%s' % args.model])
+    save_path = os.path.join(ROOT_DIR, 'results','meta_clf','metapredicts_%s_%s.txt' % (args.model, args.synergy_df))
+    saveddf.to_csv(save_path, header=True, index=True, sep=",")
+
+    return network_weights
 
 class MyDataset_trans(TensorDataset):
     def __init__(self, trainval_df):
         super(MyDataset_trans, self).__init__()
         self.df = trainval_df
-        self.df.reset_index(drop=True, inplace=True)  
+        #self.df.reset_index(drop=True, inplace=True)  
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, index):
 
-        return (self.df.iloc[index,0], self.df.iloc[index,1])
+        return (self.df.loc[index,0], self.df.loc[index,1], self.df.loc[index,2])
 
 
 def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
 
     train_val_dataset_input = temp_loader_trainval[0]
     train_val_dataset_target = temp_loader_trainval[1].tolist()
+    train_val_dataset_index = temp_loader_trainval[2].tolist()
 
     # Configuration options
     k_folds = 5
@@ -593,7 +627,7 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
     # K-fold Cross Validation model evaluation
     # for fold, (train_ids, test_ids) in enumerate(skf.split(X,y)):
     
-    trainval_df = [train_val_dataset_input,train_val_dataset_target]
+    trainval_df = [train_val_dataset_input,train_val_dataset_target,train_val_dataset_index]
     trainval_df = pd.DataFrame(trainval_df).T
 
 
@@ -607,6 +641,7 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
         print(f'FOLD {fold}')
         print('--------------------------------')
         # Sample elements randomly from a given list of ids, no replacement.
+        torch.manual_seed(42)
         train_subsampler = torch.utils.data.SubsetRandomSampler(train_ids)
         test_subsampler = torch.utils.data.SubsetRandomSampler(test_ids)
         
@@ -643,6 +678,7 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
             for i, data in enumerate(trainloader):
                 data1 = data[0]
                 data_target = data[1]
+                data_index = data[2]
                 
                 targets = data_target.unsqueeze(1)
                                 
@@ -671,11 +707,13 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
         # Evaluation for this fold
         with torch.no_grad():
             predictions, actuals = list(), list()
+            idx = list()
 
             for i, data in enumerate(valloader):
                 data1 = data[0]
                 data_target = data[1]
-                
+                data_index = data[2]
+
                 targets = data_target
 
                 # forward + backward + optimize
@@ -686,15 +724,15 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
                 # actual output
                 actual = targets.numpy()
                 actual = actual.reshape(len(actual), 1)
+
+                indices = data_index.numpy()
+                indices = indices.reshape(len(indices), 1)
+
                 # store the values in respective lists
                 predictions.append(list(outputs))
                 actuals.append(list(actual))
-
-            idx = list()
-            batch_sampler = valloader.batch_sampler
-            for i, batch_indices in enumerate(batch_sampler):
-                idx.append(batch_indices)
-
+                idx.append(list(indices))
+                
         actuals = [val for sublist in np.vstack(list(chain(*actuals))) for val in sublist]
         predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
         idx = [val for sublist in np.vstack(list(chain(*idx))) for val in sublist]
@@ -1050,8 +1088,9 @@ def evaluator_graph_TGSynergy(model,model_weights,train_val_dataset, temp_loader
     test_dataset_drug2 = temp_loader_test[1]
     test_dataset_cell = temp_loader_test[2]
     test_dataset_target = temp_loader_test[3].tolist()
+    test_dataset_index = temp_loader_test[4].tolist()
 
-    test_df = [test_dataset_drug,test_dataset_drug2,test_dataset_cell,test_dataset_target]
+    test_df = [test_dataset_drug,test_dataset_drug2,test_dataset_cell,test_dataset_target,test_dataset_index]
     test_df = pd.DataFrame(test_df).T
 
     Dataset = MyDataset 
@@ -1072,8 +1111,8 @@ def evaluator_graph_TGSynergy(model,model_weights,train_val_dataset, temp_loader
 
         model.load_state_dict(torch.load(model_weights))
 
-        #y_pred = model(drug, drug2, cell)
-        y_pred = model(data)
+        y_pred = model(drug, drug2, cell)
+        #y_pred = model(data)
         y_pred = y_pred.detach().numpy()
         # pick the index of the highest values
         #res = np.argmax(y_pred, axis = 1) 
@@ -1103,8 +1142,9 @@ def evaluator_graph_trans(model,model_weights,train_val_dataset, temp_loader_tes
 
     test_dataset= temp_loader_test[0]
     test_dataset_target = temp_loader_test[1].tolist()
+    test_dataset_index = temp_loader_test[2].tolist()
 
-    test_df = [test_dataset, test_dataset_target]
+    test_df = [test_dataset, test_dataset_target, test_dataset_index]
     test_df = pd.DataFrame(test_df).T
 
     Dataset = MyDataset_trans 

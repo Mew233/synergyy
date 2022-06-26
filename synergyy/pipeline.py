@@ -301,7 +301,7 @@ def training(X_cell, X_drug, Y, args):
             t = torch.from_numpy(array).float()
             X.append(t.float())
 
-        X_trainval, X_test, Y_trainval, Y_test, _, dummy_test  = train_test_split(X, Y, dummy, test_size=test_size, random_state=42)
+        X_trainval, X_test, Y_trainval, Y_test, dummy_trainval, dummy_test  = train_test_split(X, Y, dummy, test_size=test_size, random_state=42)
 
         # init model
         model = get_model(args.model)
@@ -313,7 +313,8 @@ def training(X_cell, X_drug, Y, args):
         # ys = trg[:, 1:].contiguous().view(-1)
 
         # train_val set for k-fold, test set for testing
-        train_val_dataset, test_loader = dataloader_graph(X_trainval=X_trainval, X_test=X_test, Y_trainval=Y_trainval, Y_test=Y_test)
+        train_val_dataset, test_loader = dataloader_graph(X_trainval=X_trainval, X_test=X_test, \
+            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval = dummy_trainval)
 
         # load the best model
         if args.train_test_mode == 'test':
@@ -396,9 +397,9 @@ def training(X_cell, X_drug, Y, args):
         X_cell_trainval, X_cell_test, \
         X_deepdds_sm_drug1_trainval, X_deepdds_sm_drug1_test,\
         X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test,\
-        Y_trainval, Y_test \
+        Y_trainval, Y_test, dummy_trainval, dummy_test \
         = train_test_split(X_cell['GNN_cell'], X_drug['smiles2graph_TGSynergy_1'],X_drug['smiles2graph_TGSynergy_2'], Y, \
-                                test_size=test_size, random_state=42)
+                                 dummy, test_size=test_size, random_state=42)
 
 
     #     # should be compatible with fp_drug, fp_drug2, cell
@@ -406,7 +407,7 @@ def training(X_cell, X_drug, Y, args):
             X_deepdds_sm_drug1_trainval=X_deepdds_sm_drug1_trainval, X_deepdds_sm_drug1_test=X_deepdds_sm_drug1_test,\
             X_deepdds_sm_drug2_trainval=X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test=X_deepdds_sm_drug2_test,\
             X_cell_trainval=X_cell_trainval, X_cell_test=X_cell_test,\
-            Y_trainval=Y_trainval, Y_test=Y_test
+            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval=dummy_trainval, dummy_test=dummy_test
                 )
     
     # init model

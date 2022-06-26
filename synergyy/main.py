@@ -15,12 +15,12 @@ def arg_parse():
                         help='synergy threshold (default: loewe score)')
     parser.add_argument('--batch_size', type=int, default=256,
                         help='batch size (default: 256)')
-    parser.add_argument('--epochs', type=int, default=50,
+    parser.add_argument('--epochs', type=int, default=1,
                         help='maximum number of epochs (default: 50)')
-    parser.add_argument('--train_test_mode', type=str, default='train',
+    parser.add_argument('--train_test_mode', type=str, default='test',
                         help='train or test')
     parser.add_argument('--SHAP_analysis', type=bool, default=False)
-    parser.add_argument('--model', type=str, default='transynergy_liu',
+    parser.add_argument('--model', type=str, default='TGSynergy',
                         help='import model (default: multitaskdnn_kim)')
                         #options are 'LR','XGBOOST','RF','ERT','deepsynergy_preuer','multitaskdnn_kim',
                         # 'matchmaker_brahim','deepdds_wang','TGSynergy','transynergy_liu')
@@ -31,16 +31,16 @@ def arg_parse():
                         help = 'DrugComb or Sanger2022')
     parser.add_argument('--external_validation', type=bool, default=False,
                         required=False, help = 'True for Sanger2022')
-    parser.add_argument('--drug_omics', nargs="+", default=['drug_target_rwr'],
+    parser.add_argument('--drug_omics', nargs="+", default=['drug_target','smiles2graph_TGSynergy'],
                         required=False, help='drug_target/drug_target_rwr/morgan_fingerprint\
                             /smiles2graph/smiles2graph_TGSynergy/chemical_descriptor')    
     parser.add_argument('--cell_df', type=str, default='CCLE',
                         help='CCLE')
-    parser.add_argument('--cell_omics', nargs="+", default=['exp'],
+    parser.add_argument('--cell_omics', nargs="+", default=['GNN_cell'],
                         required=False, help='"exp","cn","mut","GNN_cell')
-    parser.add_argument('--cell_filtered_by', type=str, default='dti',
+    parser.add_argument('--cell_filtered_by', type=str, default='variance',
                         required=False,help='top genes selected by variance or STRING graph or dti(for Transynergy)')
-    parser.add_argument('--get_cellfeature_concated', type=bool, default=True,
+    parser.add_argument('--get_cellfeature_concated', type=bool, default=False,
                         required=False)
     parser.add_argument('--get_drugfeature_concated', type=bool, default=False,
                         required=False, help='if concat, numpy array')
