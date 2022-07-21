@@ -31,7 +31,7 @@ def prepare_data(args):
     config = _configs_[args.model]
 
     print("loading synergy dataset ...")
-    synergy_df = load_synergy(config['synergy_df'])
+    synergy_df = load_synergy(config['synergy_df'],args)
     print("loading drug features ...")
     drugFeature_dicts = load_drug_features()
     print("loading cell line features ...")
@@ -233,7 +233,7 @@ def training(X_cell, X_drug, Y, args):
         X_fp_drug2_trainval, X_fp_drug2_test,\
         X_tg_drug1_trainval, X_tg_drug1_test,\
         X_tg_drug2_trainval, X_tg_drug2_test,\
-        Y_trainval, Y_test,  _, dummy_test = train_test_split(X_cell, X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], \
+        Y_trainval, Y_test,  dummy_trainval, dummy_test = train_test_split(X_cell, X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], \
                                 X_drug['drug_target_1'],X_drug['drug_target_2'],Y, dummy, \
                                 test_size=test_size, random_state=42)
 
@@ -256,7 +256,7 @@ def training(X_cell, X_drug, Y, args):
             X_fp_drug2_trainval=X_fp_drug2_trainval, X_fp_drug2_test=X_fp_drug2_test,\
             X_tg_drug2_trainval=X_tg_drug2_trainval, X_tg_drug2_test=X_tg_drug2_test,\
             X_cell_trainval=X_cell_trainval, X_cell_test=X_cell_test,\
-            Y_trainval=Y_trainval, Y_test=Y_test
+            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval = dummy_trainval, dummy_test=dummy_test
                 )
 
         # load the best model
@@ -274,7 +274,7 @@ def training(X_cell, X_drug, Y, args):
         # processed_synergydf = pd.read_csv(save_path, index_col=0, sep=",")
         # dummy = np.array(processed_synergydf.index)
 
-        X_trainval, X_test, Y_trainval, Y_test, _, dummy_test  = train_test_split(X, Y, dummy, test_size=test_size, random_state=42)
+        X_trainval, X_test, Y_trainval, Y_test, dummy_trainval, dummy_test  = train_test_split(X, Y, dummy, test_size=test_size, random_state=42)
         save_path = os.path.join(ROOT_DIR, 'results','test_idx.txt')
         np.savetxt(save_path,dummy_test.astype(int), delimiter=',')
 
@@ -284,7 +284,8 @@ def training(X_cell, X_drug, Y, args):
         model = get_model(args.model,channels)
         
         # train_val set for k-fold, test set for testing
-        train_val_dataset, test_loader = dataloader(X_trainval=X_trainval, X_test=X_test, Y_trainval=Y_trainval, Y_test=Y_test)
+        train_val_dataset, test_loader = dataloader(X_trainval=X_trainval, X_test=X_test, \
+            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval=dummy_trainval, dummy_test=dummy_test)
 
         # load the best model
         if args.train_test_mode == 'test':
@@ -314,7 +315,7 @@ def training(X_cell, X_drug, Y, args):
 
         # train_val set for k-fold, test set for testing
         train_val_dataset, test_loader = dataloader_graph(X_trainval=X_trainval, X_test=X_test, \
-            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval = dummy_trainval)
+            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval = dummy_trainval, dummy_test=dummy_test)
 
         # load the best model
         if args.train_test_mode == 'test':
@@ -332,7 +333,7 @@ def training(X_cell, X_drug, Y, args):
         X_cell_trainval, X_cell_test, \
         X_fp_drug1_trainval, X_fp_drug1_test,\
         X_fp_drug2_trainval, X_fp_drug2_test,\
-        Y_trainval, Y_test, _, dummy_test\
+        Y_trainval, Y_test, dummy_trainval, dummy_test\
         = train_test_split(X_cell, X_drug[text+'_1'],X_drug[text+'_2'], Y, dummy,\
                                 test_size=test_size, random_state=42)
 
@@ -353,7 +354,7 @@ def training(X_cell, X_drug, Y, args):
             X_fp_drug1_trainval=X_fp_drug1_trainval, X_fp_drug1_test=X_fp_drug1_test,\
             X_fp_drug2_trainval=X_fp_drug2_trainval, X_fp_drug2_test=X_fp_drug2_test,\
             X_cell_trainval=X_cell_trainval, X_cell_test=X_cell_test,\
-            Y_trainval=Y_trainval, Y_test=Y_test
+            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval=dummy_trainval, dummy_test=dummy_test
                 )
 
         # load the best model
@@ -367,8 +368,8 @@ def training(X_cell, X_drug, Y, args):
         X_cell_trainval, X_cell_test, \
         X_deepdds_sm_drug1_trainval, X_deepdds_sm_drug1_test,\
         X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test,\
-        Y_trainval, Y_test \
-        = train_test_split(X_cell, X_drug['smiles2graph_1'],X_drug['smiles2graph_2'], Y, \
+        Y_trainval, Y_test, dummy_trainval, dummy_test \
+        = train_test_split(X_cell, X_drug['smiles2graph_1'],X_drug['smiles2graph_2'], Y, dummy,\
                                 test_size=test_size, random_state=42)
 
 
@@ -378,7 +379,7 @@ def training(X_cell, X_drug, Y, args):
             X_deepdds_sm_drug1_trainval=X_deepdds_sm_drug1_trainval, X_deepdds_sm_drug1_test=X_deepdds_sm_drug1_test,\
             X_deepdds_sm_drug2_trainval=X_deepdds_sm_drug2_trainval, X_deepdds_sm_drug2_test=X_deepdds_sm_drug2_test,\
             X_cell_trainval=X_cell_trainval, X_cell_test=X_cell_test,\
-            Y_trainval=Y_trainval, Y_test=Y_test
+            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval=dummy_trainval, dummy_test=dummy_test
                 )
         
         # init model
@@ -437,7 +438,7 @@ def evaluate(model, model_weights, test_loader, train_val_dataset, args):
 
     elif args.model in ['deepdds_wang']:
 
-        actuals, predictions, shap_df, features_df, expected_value = evaluator_graph(model, model_weights,test_loader)
+        actuals, predictions, shap_df, features_df, expected_value = evaluator_graph(model, model_weights,test_loader, args)
         #actuals, predictions = evaluator_graph(model, model_weights,test_loader)
 
     elif args.model in ['TGSynergy']:

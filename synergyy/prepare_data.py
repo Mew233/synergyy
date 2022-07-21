@@ -14,7 +14,7 @@ from utilitis import *
 
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
-def load_synergy(dataset):
+def load_synergy(dataset,args):
     '''
     Load synergy datasets. 
     Load multi-omics dataset and revise into the specified format.
@@ -30,6 +30,7 @@ def load_synergy(dataset):
         data = data[['drug_row', 'drug_col','cell_line_name','study_name','tissue_name',\
           'synergy_zip','synergy_loewe','synergy_hsa','synergy_bliss','DepMap_ID_x','RRID_x',\
           'pubchemID_x','compound0_x','pubchemID_y','compound0_y']]
+
         data_trim = data[['compound0_x','compound0_y','DepMap_ID_x','study_name','synergy_loewe']]
 
         ## clean the scores
@@ -52,7 +53,6 @@ def load_synergy(dataset):
             'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID_x':'cell','synergy_loewe':'score'})
 
         return summary_data
-
     
     def process_sanger2022():
         data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Sanger2022','drug_combinations_TGSA_Jaaks.csv'))

@@ -18,6 +18,7 @@ from torch_geometric import data as DATA
 import random
 import pandas as pd
 import shap as sp
+from tqdm import tqdm
 
 torch.manual_seed(42)
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
@@ -40,6 +41,11 @@ def dataloader(*args,**kwargs):
 
         elif input_name[0].startswith('X'):
             #input is tabular format
+            input = input.astype('float32')
+            input = torch.from_numpy(input)
+            temp_loader[name] = input
+        
+        elif input_name[0].startswith('dummy'):
             input = input.astype('float32')
             input = torch.from_numpy(input)
             temp_loader[name] = input
@@ -136,8 +142,9 @@ def k_fold_trainer(dataset,model,args):
 
             # Iterate over the DataLoader for training data
             for i, data in enumerate(trainloader, 0):
-            
-                inputs, targets = data[:-1], data[-1]
+                model.train()
+                inputs, targets = data[:-2], data[-2]
+                index = data[-1]
                 # Zero the gradients
                 optimizer.zero_grad()
                 # forward + backward + optimize
@@ -166,8 +173,14 @@ def k_fold_trainer(dataset,model,args):
         # Evaluation for this fold
         with torch.no_grad():
             predictions, actuals = list(), list()
+            idx = list()
+
             for i, data in enumerate(valloader, 0):
-                inputs, labels = data[:-1], data[-1]
+                model.eval()
+
+                inputs, labels = data[:-2], data[-2]
+                data_index = data[-1]
+
                 if args.model == 'deepsynergy_preuer':
                     outputs = network(inputs[0])
                 elif args.model == 'matchmaker_brahim':
@@ -180,14 +193,14 @@ def k_fold_trainer(dataset,model,args):
                 # actual output
                 actual = labels.numpy()
                 actual = actual.reshape(len(actual), 1)
+
                 # store the values in respective lists
+                indices = data_index.numpy()
+                indices = indices.reshape(len(indices), 1)
+
                 predictions.append(list(outputs))
                 actuals.append(list(actual))
-            
-            idx = list()
-            batch_sampler = valloader.batch_sampler
-            for i, batch_indices in enumerate(batch_sampler):
-                idx.append(batch_indices)
+                idx.append(list(indices))
 
         actuals = [val for sublist in np.vstack(list(chain(*actuals))) for val in sublist]
         predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
@@ -256,6 +269,7 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
     train_val_dataset_drug2 = temp_loader_trainval[1]
     train_val_dataset_cell = temp_loader_trainval[2].tolist()
     train_val_dataset_target = temp_loader_trainval[3].tolist()
+    train_val_dataset_index = temp_loader_trainval[4].tolist()
 
     # Configuration options
     k_folds = 5
@@ -283,8 +297,13 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
     # K-fold Cross Validation model evaluation
     # for fold, (train_ids, test_ids) in enumerate(skf.split(X,y)):
     
-    trainval_df = [train_val_dataset_drug,train_val_dataset_drug2,train_val_dataset_cell,train_val_dataset_target]
+    trainval_df = [train_val_dataset_drug,train_val_dataset_drug2,train_val_dataset_cell,train_val_dataset_target,train_val_dataset_index]
     trainval_df = pd.DataFrame(trainval_df).T
+
+    # save 5-fold evalutation results for meta classifier
+    meta_clf_pred = []
+    meta_clf_acts = []
+    meta_clf_index = []
 
     for fold, (train_ids, test_ids) in enumerate(kfold.split(trainval_df)):
         # Print
@@ -329,6 +348,8 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
                 data2 = data[1]
                 data_cell = data[2]
                 data_target = data[3]
+                data_index = data[4]
+
                 x1, edge_index1, x2, edge_index2, cell, batch1, batch2 \
                     = data1.x, data1.edge_index, data2.x, data2.edge_index, data_cell, data1.batch, data2.batch
 
@@ -358,12 +379,15 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
         # Evaluation for this fold
         with torch.no_grad():
             predictions, actuals = list(), list()
+            idx = list()
 
             for i, data in enumerate(valloader):
                 data1 = data[0]
                 data2 = data[1]
                 data_cell = data[2]
                 data_target = data[3]
+                data_index = data[4]
+
                 x1, edge_index1, x2, edge_index2, cell, batch1, batch2 \
                     = data1.x, data1.edge_index, data2.x, data2.edge_index, data_cell, data1.batch, data2.batch
 
@@ -377,16 +401,27 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
                 # actual output
                 actual = targets.numpy()
                 actual = actual.reshape(len(actual), 1)
+
+                indices = data_index.numpy()
+                indices = indices.reshape(len(indices), 1)
+
                 # store the values in respective lists
                 predictions.append(list(outputs))
                 actuals.append(list(actual))
-
+                idx.append(list(indices))
+                
         actuals = [val for sublist in np.vstack(list(chain(*actuals))) for val in sublist]
         predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
+        idx = [val for sublist in np.vstack(list(chain(*idx))) for val in sublist]
+
         try:
             auc = roc_auc_score(y_true=actuals, y_score=predictions)
         except ValueError:
             auc = 0
+
+        meta_clf_pred.append(predictions)
+        meta_clf_acts.append(actuals)
+        meta_clf_index.append(idx)
 
         # Print accuracy
         print(f'Accuracy for fold %d: %f' % (fold, auc))
@@ -407,7 +442,19 @@ def k_fold_trainer_graph(temp_loader_trainval,model,args):
         sum += value
     print(f'Average: {sum/len(results.items())}')
 
-    return network
+    network_weights = 'best_model_%s.pth' % args.model
+
+    # save 5-fold evaluation results
+    meta_clf_acts = [val for sublist in np.vstack(list(chain(*meta_clf_acts))) for val in sublist]
+    meta_clf_pred = [val for sublist in np.vstack(list(chain(*meta_clf_pred))) for val in sublist]
+    meta_clf_index = [val for sublist in np.vstack(list(chain(*meta_clf_index))) for val in sublist]
+
+    saveddf = pd.DataFrame(np.column_stack([meta_clf_index,meta_clf_acts,meta_clf_pred]),\
+                columns=['index','actuals','metapredicts_%s' % args.model])
+    save_path = os.path.join(ROOT_DIR, 'results','meta_clf','metapredicts_%s_%s.txt' % (args.model, args.synergy_df))
+    saveddf.to_csv(save_path, header=True, index=True, sep=",")
+
+    return network_weights
 
 def k_fold_trainer_graph_TGSynergy(temp_loader_trainval,model,args):
 
@@ -837,7 +884,14 @@ def SHAP(model, model_weights,train_val_dataset, test_loader,args):
 
 
     # normal models use "DataLoader"
+
+
     else:
+        if args.model == 'transynergy_liu':
+            train_val_dataset = pd.DataFrame(train_val_dataset).T
+            Dataset = MyDataset_trans 
+            train_val_dataset = Dataset(train_val_dataset)
+
         train_val_loader = DataLoader(train_val_dataset, batch_size=256,shuffle = False)
         #only select first batch's endpoints as our background
         batch = next(iter(train_val_loader))
@@ -868,6 +922,35 @@ def SHAP(model, model_weights,train_val_dataset, test_loader,args):
         # Here we only focus on cell expression matrics, still need drug shaps to cacluate the proba
         shap_df = pd.DataFrame(shap_arr, columns=exp_col_list+drugs_col_list, index=test_idx)
         features_df = pd.DataFrame(features_arr, columns=exp_col_list+drugs_col_list, index=test_idx).iloc[: , :1000]
+
+    # --------------- transynergy_liu ---------------- #
+    elif args.model == 'transynergy_liu':
+        explainer = sp.DeepExplainer(model, background[0])
+        expected_value = explainer.expected_value
+        shap_list, features_list = list(), list()
+        # predictions, actuals = list(), list()
+        for i, data in enumerate(test_loader, 0):
+            # get the inputs; data is a list of [inputs, labels]
+            inputs, _ = data[:-1], data[-1]
+            shap_array_list = explainer.shap_values(inputs[0])
+            shap_list.append(shap_array_list)
+            features_list.append(inputs[0].numpy())
+        
+        shap_df = pd.DataFrame()
+        features_df = pd.DataFrame()
+        for i in tqdm(np.arange(len(shap_list))):
+            #batch
+            for j in np.arange(len(shap_list[i])):
+                #record in batch
+                d1_shap_arr, d2_shap_arr, exp_shap_arr = shap_list[i][j]
+                shap_arr = np.concatenate((d1_shap_arr, d2_shap_arr, exp_shap_arr), axis=None)
+                temp = pd.DataFrame(shap_arr).T
+                shap_df = shap_df.append(temp)
+
+                chem_feat_arr, dg_feat_arr, exp_feat_arr = features_list[i][j]
+                feat_arr = np.concatenate((chem_feat_arr, dg_feat_arr, exp_feat_arr), axis=None)
+                temp_feat = pd.DataFrame(feat_arr).T
+                features_df = features_df.append(temp_feat)
 
 # --------------- matchmaker --------------- #
     elif args.model in ['matchmaker_brahim','multitaskdnn_kim']:
@@ -994,7 +1077,8 @@ def evaluator(model,model_weights,train_val_dataset,test_loader, args):
     predictions, actuals = list(), list()
     for i, data in enumerate(test_loader, 0):
         # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data[:-1], data[-1]
+        inputs, labels = data[:-2], data[-2]
+        index = data[-1]
         if args.model == 'deepsynergy_preuer':
             y_pred = model(inputs[0])
         elif args.model == 'matchmaker_brahim':
@@ -1031,8 +1115,9 @@ def evaluator_graph(model,model_weights,temp_loader_test,args):
     test_dataset_drug2 = temp_loader_test[1]
     test_dataset_cell = temp_loader_test[2].tolist()
     test_dataset_target = temp_loader_test[3].tolist()
+    test_dataset_index = temp_loader_test[4].tolist()
 
-    test_df = [test_dataset_drug,test_dataset_drug2,test_dataset_cell,test_dataset_target]
+    test_df = [test_dataset_drug,test_dataset_drug2,test_dataset_cell,test_dataset_target,test_dataset_index]
     test_df = pd.DataFrame(test_df).T
 
     Dataset = MyDataset 
@@ -1149,7 +1234,8 @@ def evaluator_graph_trans(model,model_weights,train_val_dataset, temp_loader_tes
     Dataset = MyDataset_trans 
     test_df = Dataset(test_df)
             
-    test_loader = torch_geometric.data.DataLoader(test_df, batch_size=256,shuffle = False)
+    #test_loader = torch_geometric.data.DataLoader(test_df, batch_size=256,shuffle = False)
+    test_loader = DataLoader(test_df, batch_size=256,shuffle = False)
 
     predictions, actuals = list(), list()
 
