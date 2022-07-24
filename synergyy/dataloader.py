@@ -925,8 +925,8 @@ def SHAP(model, model_weights,train_val_dataset, test_loader,args):
 
     # --------------- transynergy_liu ---------------- #
     elif args.model == 'transynergy_liu':
-        explainer = sp.DeepExplainer(model, background[0])
-        expected_value = explainer.expected_value
+        explainer = sp.GradientExplainer(model, background[0])
+        expected_value = model(background[0]).mean(0)
         shap_list, features_list = list(), list()
         # predictions, actuals = list(), list()
         for i, data in enumerate(test_loader, 0):
