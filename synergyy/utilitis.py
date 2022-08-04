@@ -499,7 +499,7 @@ class OutputFeedForward(nn.Module):
 
         self.d_layers = [512, 1] if d_layers is None else d_layers
         # self.linear_1 = nn.Linear(H*W, self.d_layers[0])
-        self.linear_1 = nn.Linear(768, self.d_layers[0])
+        self.linear_1 = nn.Linear(H, self.d_layers[0])
         self.n_layers = len(self.d_layers)
         self.dropouts = nn.ModuleList(nn.Dropout(dropout) for _ in range(1, self.n_layers))
         self.layers = nn.ModuleList(nn.Linear(d_layers[i-1], d_layers[i]) for i in range(1, self.n_layers))
@@ -516,6 +516,53 @@ class OutputFeedForward(nn.Module):
         x = self.sigmoid(x)
         return x
 
+def dice(im1, im2):
+    """
+    Computes the Dice coefficient, a measure of set similarity.
+    Parameters
+    ----------
+    im1 : array-like, bool
+        Any array of arbitrary size. If not boolean, will be converted.
+    im2 : array-like, bool
+        Any other array of identical size. If not boolean, will be converted.
+    Returns
+    -------
+    dice : float
+        Dice coefficient as a float on range [0,1].
+        Maximum similarity = 1
+        No similarity = 0
+        
+    Notes
+    -----
+    The order of inputs for `dice` is irrelevant. The result will be
+    identical if `im1` and `im2` are switched.
+    """
+    im1 = np.asarray(im1).astype(np.bool)
+    im2 = np.asarray(im2).astype(np.bool)
+
+    if im1.shape != im2.shape:
+        raise ValueError("Shape mismatch: im1 and im2 must have the same shape.")
+
+    # Compute Dice coefficient
+    intersection = np.logical_and(im1, im2)
+
+    return 2. * intersection.sum() / (im1.sum() + im2.sum())
+
+class Mapping():
+    
+    def __init__(self, items):        
+        self.item2idx={}
+        self.idx2item=[]
+        
+        for idx, item in enumerate(items):
+            self.item2idx[item]=idx
+            self.idx2item.append(item)
+            
+    def add(self,item):
+        if item not in self.idx2item:
+            self.idx2item.append(item)
+            self.item2idx[item]=len(self.idx2item)-1
+            
 if __name__ == "__main__":
     # configuration_from_json()
     test = smile_to_graph('CC[C@H](C)[C@H](NC(=O)[C@H](CCC(O)=O)NC(=O)[C@H](CCC(O)=O)NC(=O)[C@H](CC1=CC=CC=C1)NC(=O)[C@H](CC(O)=O)NC(=O)CNC(=O)[C@H](CC(N)=O)NC(=O)CNC(=O)CNC(=O)CNC(=O)CNC(=O)[C@@H]1CCCN1C(=O)[C@H](CCCNC(N)=N)NC(=O)[C@@H]1CCCN1C(=O)[C@H](N)CC1=CC=CC=C1)C(=O)N1CCC[C@H]1C(=O)N[C@@H](CCC(O)=O)C(=O)N[C@@H](CCC(O)=O)C(=O)N[C@@H](CC1=CC=C(O)C=C1)C(=O)N[C@@H](CC(C)C)C(O)=O')

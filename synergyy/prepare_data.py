@@ -305,6 +305,27 @@ def load_drug_features():
     #     return drug_targets_new
 
 
+    def process_smiles():
+        #padding for transynergy/transformer
+        smiles_list = []
+        for mol in molecules:
+            smiles = mol.GetProp('SMILES')
+            smiles_list.append(smiles)
+        #Convert SMILES's character into index
+        seqs=smiles_list
+        chars=set([char for seq in seqs for char in seq])
+        chars = list(chars) #for zero embedding
+
+        smiles_dict = dict()
+        for mol in molecules:
+            drugbank_id = mol.GetProp('DATABASE_ID')
+            smiles = mol.GetProp('SMILES')
+
+            d1_sm = [Mapping(chars).item2idx[char] for char in smiles]
+            smiles_dict[split_it(drugbank_id)] = d1_sm
+            #len(Mapping(chars).idx2item)
+        return smiles_dict
+
 
     def process_smiles2graph():
         # r
@@ -339,6 +360,7 @@ def load_drug_features():
     save_path = os.path.join(save_path, 'input_drug_data.npy')
     if not os.path.exists(save_path):
         data_dicts = {}
+        data_dicts['smiles'] = process_smiles()
         data_dicts['morgan_fingerprint'] = process_fingerprint()
         data_dicts['chemical_descriptor'] = process_ChemicalDescrpitor()
         data_dicts['drug_target'] = process_dpi()
@@ -358,6 +380,8 @@ def load_drug_features():
         a = a.loc[a.index.isin(list(selected_genes)), :]
         data_dicts['drug_target'] = a
        
+        data_dicts['smiles'] = process_smiles()
+
     return data_dicts
 
 if __name__ == "__main__":

@@ -647,7 +647,8 @@ class MyDataset_trans(TensorDataset):
 
     def __getitem__(self, index):
 
-        return (self.df.loc[index,0], self.df.loc[index,1], self.df.loc[index,2])
+        return (self.df.loc[index,0], self.df.loc[index,1], self.df.loc[index,2], self.df.loc[index,3], \
+         self.df.loc[index,4], self.df.loc[index,5])
 
 
 def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
@@ -655,6 +656,10 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
     train_val_dataset_input = temp_loader_trainval[0]
     train_val_dataset_target = temp_loader_trainval[1].tolist()
     train_val_dataset_index = temp_loader_trainval[2].tolist()
+
+    train_val_dataset_fps = temp_loader_trainval[3]
+    train_val_dataset_sm1 = temp_loader_trainval[4]
+    train_val_dataset_sm2 = temp_loader_trainval[5]
 
     # Configuration options
     k_folds = 5
@@ -673,7 +678,8 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
     # K-fold Cross Validation model evaluation
     # for fold, (train_ids, test_ids) in enumerate(skf.split(X,y)):
     
-    trainval_df = [train_val_dataset_input,train_val_dataset_target,train_val_dataset_index]
+    trainval_df = [train_val_dataset_input,train_val_dataset_target,train_val_dataset_index,train_val_dataset_fps,
+    train_val_dataset_sm1,train_val_dataset_sm2]
     trainval_df = pd.DataFrame(trainval_df).T
 
 
@@ -725,14 +731,18 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
                 data1 = data[0]
                 data_target = data[1]
                 data_index = data[2]
-                
+
+                data_fp = data[3]
+                data_sm1 = data[4]
+                data_sm2 = data[5]
+
                 targets = data_target.unsqueeze(1)
                                 
 
                 # Zero the gradients
                 optimizer.zero_grad()
                 # forward + backward + optimize
-                outputs = network(data1)
+                outputs = network(data1,fp=data_fp,sm1=data_sm1,sm2=data_sm2) #outputs = network(data1,fp=None)
 
                 loss = loss_function(outputs, targets.to(torch.float32))
                 loss.backward()
@@ -759,11 +769,15 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
                 data1 = data[0]
                 data_target = data[1]
                 data_index = data[2]
+                
+                data_fp = data[3]
+                data_sm1 = data[4]
+                data_sm2 = data[5]
 
                 targets = data_target
 
                 # forward + backward + optimize
-                outputs = network(data1)
+                outputs = network(data1,fp=data_fp,sm1=data_sm1,sm2=data_sm2) #outputs = network(data1,fp=None)
                 outputs = outputs.squeeze(1)
                 outputs = outputs.detach().numpy()
 
@@ -1228,7 +1242,9 @@ def evaluator_graph_trans(model,model_weights,train_val_dataset, temp_loader_tes
     test_dataset_target = temp_loader_test[1].tolist()
     test_dataset_index = temp_loader_test[2].tolist()
 
-    test_df = [test_dataset, test_dataset_target, test_dataset_index]
+    test_dataset_fps = temp_loader_test[3]
+
+    test_df = [test_dataset, test_dataset_target, test_dataset_index, test_dataset_fps]
     test_df = pd.DataFrame(test_df).T
 
     Dataset = MyDataset_trans 
@@ -1244,9 +1260,11 @@ def evaluator_graph_trans(model,model_weights,train_val_dataset, temp_loader_tes
         data1 = data[0]
         data_target = data[1]
 
+        data_fp = data[3]
+
         model.load_state_dict(torch.load(model_weights))
 
-        y_pred = model(data1)
+        y_pred = model(data1,fp=data_fp)
         y_pred = y_pred.detach().numpy()
 
         # actual output

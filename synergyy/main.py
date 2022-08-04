@@ -15,11 +15,11 @@ def arg_parse():
                         help='synergy threshold (default: loewe score)')
     parser.add_argument('--batch_size', type=int, default=256,
                         help='batch size (default: 256)')
-    parser.add_argument('--epochs', type=int, default=50,
+    parser.add_argument('--epochs', type=int, default=5,
                         help='maximum number of epochs (default: 50)')
-    parser.add_argument('--train_test_mode', type=str, default='test',
+    parser.add_argument('--train_test_mode', type=str, default='train',
                         help='train or test')
-    parser.add_argument('--SHAP_analysis', type=bool, default=True)
+    parser.add_argument('--SHAP_analysis', type=bool, default=False)
     parser.add_argument('--model', type=str, default='transynergy_liu',
                         help='import model (default: multitaskdnn_kim)')
                         #options are 'LR','XGBOOST','RF','ERT','deepsynergy_preuer','multitaskdnn_kim',
@@ -31,9 +31,9 @@ def arg_parse():
                         help = 'DrugComb or Sanger2022')
     parser.add_argument('--external_validation', type=bool, default=False,
                         required=False, help = 'True for Sanger2022')
-    parser.add_argument('--drug_omics', nargs="+", default=['drug_target_rwr'],
+    parser.add_argument('--drug_omics', nargs="+", default=['drug_target_rwr','morgan_fingerprint','smiles'],
                         required=False, help='drug_target/drug_target_rwr/morgan_fingerprint\
-                            /smiles2graph/smiles2graph_TGSynergy/chemical_descriptor')    
+                            /smiles2graph/smiles2graph_TGSynergy/chemical_descriptor/smiles')    
     parser.add_argument('--cell_df', type=str, default='CCLE',
                         help='CCLE')
     parser.add_argument('--cell_omics', nargs="+", default=['exp'],

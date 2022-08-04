@@ -113,7 +113,7 @@ def prepare_data(args):
     drug_mat_dict = {}
     for feat_type in config['drug_omics']:
 ### 需要修改, append到一个list
-        if feat_type=='smiles2graph' or feat_type=='smiles2graph_TGSynergy':
+        if feat_type=='smiles2graph' or feat_type=='smiles2graph_TGSynergy' or feat_type=='smiles':
             temp_X_drug1, temp_X_drug2 = [], []
             for i in tqdm(range(synergy_df.shape[0])):
                 row = synergy_df.iloc[i]
@@ -296,13 +296,30 @@ def training(X_cell, X_drug, Y, args):
 # --------------- transynergy --------------- #
     elif args.model == 'transynergy_liu':
         X=[]
-        for index, (d1, d2, cell) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell)):
+        X2=[] #additional features
+        X_sm1 = []
+        X_sm2 = []
+        for index, (d1, d2, cell, fp1, fp2, sm1, sm2) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell,\
+            X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], \
+                X_drug['smiles_1'],X_drug['smiles_2'])):
             array_tuple = (d1, d2, cell)
             array = np.vstack(array_tuple)
             t = torch.from_numpy(array).float()
-            X.append(t.float())
 
-        X_trainval, X_test, Y_trainval, Y_test, dummy_trainval, dummy_test  = train_test_split(X, Y, dummy, test_size=test_size, random_state=42)
+            t2 = torch.from_numpy(np.vstack((fp1,fp2))).float()
+            X.append(t.float())
+            X2.append(t2.float())
+
+            padded_sm1 = np.pad(sm1, pad_width=(0, 244-len(sm1)), mode='constant', constant_values=0)
+            padded_sm2 = np.pad(sm2, pad_width=(0, 244-len(sm2)), mode='constant', constant_values=0)
+            X_sm1.append(torch.from_numpy(np.array(padded_sm1)).int())
+            X_sm2.append(torch.from_numpy(np.array(padded_sm2)).int())
+
+        #len(max(smiles_list, key = len)) is 244
+
+        X_trainval, X_test, Y_trainval, Y_test, dummy_trainval, dummy_test, X2_trainval, X2_test,  \
+            X_sm1_trainval, X_sm1_test, X_sm2_trainval, X_sm2_test,\
+            = train_test_split(X, Y, dummy, X2, X_sm1, X_sm2, test_size=test_size, random_state=42)
 
         # init model
         model = get_model(args.model)
@@ -314,8 +331,10 @@ def training(X_cell, X_drug, Y, args):
         # ys = trg[:, 1:].contiguous().view(-1)
 
         # train_val set for k-fold, test set for testing
-        train_val_dataset, test_loader = dataloader_graph(X_trainval=X_trainval, X_test=X_test, \
-            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval = dummy_trainval, dummy_test=dummy_test)
+        train_val_dataset, test_loader = dataloader_graph(X_trainval=X_trainval, X_test=X_test,\
+            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval = dummy_trainval, dummy_test=dummy_test, \
+                 X2_trainval=X2_trainval, X2_test=X2_test,\
+                    X_sm1_trainval=X_sm1_trainval, X_sm1_test=X_sm1_test, X_sm2_trainval=X_sm2_trainval, X_sm2_test=X_sm2_test)
 
         # load the best model
         if args.train_test_mode == 'test':
