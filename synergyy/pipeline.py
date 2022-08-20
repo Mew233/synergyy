@@ -23,7 +23,7 @@ from dataloader import dataloader, dataloader_graph, k_fold_trainer, k_fold_trai
     k_fold_trainer_graph_TGSynergy,evaluator_graph_TGSynergy, k_fold_trainer_graph_trans, evaluator_graph_trans
 from dataloader import SHAP
 import torch_geometric.data
-
+from utilitis import smile_to_graph
 
 
 def prepare_data(args):
@@ -33,7 +33,7 @@ def prepare_data(args):
     print("loading synergy dataset ...")
     synergy_df = load_synergy(config['synergy_df'],args)
     print("loading drug features ...")
-    drugFeature_dicts = load_drug_features()
+    drugFeature_dicts = load_drug_features(args)
     print("loading cell line features ...")
     cellFeatures_dicts = load_cellline_features(config['cell_df'])
 
@@ -174,7 +174,7 @@ def prepare_data(args):
 
 def training_baselines(X_cell, X_drug, Y, args):
     if args.external_validation:
-        test_size = 0.9999
+        test_size = 0.99999 #0.9999
     else:
         test_size = 0.2
     # --------------- baseline  --------------- #
@@ -214,7 +214,7 @@ def training_baselines(X_cell, X_drug, Y, args):
 
 def training(X_cell, X_drug, Y, args):
     if args.external_validation:
-        test_size = 0.9999 # 0.9999
+        test_size = 0.99999 #0.9999
     else:
         test_size = 0.2
     
@@ -297,11 +297,12 @@ def training(X_cell, X_drug, Y, args):
     elif args.model == 'transynergy_liu':
         X=[]
         X2=[] #additional features
-        X_sm1 = []
-        X_sm2 = []
-        for index, (d1, d2, cell, fp1, fp2, sm1, sm2) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell,\
+        X_sm1, X_sm2 = [], []
+        X_sm1_graph, X_sm2_graph = [], []
+        
+        for index, (d1, d2, cell, fp1, fp2, sm1, sm2, sm1g,sm2g) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell,\
             X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], \
-                X_drug['smiles_1'],X_drug['smiles_2'])):
+                X_drug['smiles_1'],X_drug['smiles_2'], X_drug['smiles2graph_TGSynergy_1'],X_drug['smiles2graph_TGSynergy_2'])):
             array_tuple = (d1, d2, cell)
             array = np.vstack(array_tuple)
             t = torch.from_numpy(array).float()
@@ -310,16 +311,24 @@ def training(X_cell, X_drug, Y, args):
             X.append(t.float())
             X2.append(t2.float())
 
+            X_sm1_graph.append(sm1g)
+            X_sm2_graph.append(sm2g)
+
+            ##
             padded_sm1 = np.pad(sm1, pad_width=(0, 244-len(sm1)), mode='constant', constant_values=0)
             padded_sm2 = np.pad(sm2, pad_width=(0, 244-len(sm2)), mode='constant', constant_values=0)
-            X_sm1.append(torch.from_numpy(np.array(padded_sm1)).int())
-            X_sm2.append(torch.from_numpy(np.array(padded_sm2)).int())
+            X_sm1.append(torch.from_numpy(np.array(padded_sm1)).float())
+            X_sm2.append(torch.from_numpy(np.array(padded_sm2)).float())
 
         #len(max(smiles_list, key = len)) is 244
 
         X_trainval, X_test, Y_trainval, Y_test, dummy_trainval, dummy_test, X2_trainval, X2_test,  \
             X_sm1_trainval, X_sm1_test, X_sm2_trainval, X_sm2_test,\
-            = train_test_split(X, Y, dummy, X2, X_sm1, X_sm2, test_size=test_size, random_state=42)
+                X_sm1_g_trainval, X_sm1_g_test, X_sm2_g_trainval, X_sm2_g_test,\
+            = train_test_split(X, Y, dummy, X2, X_sm1, X_sm2, X_sm1_graph, X_sm2_graph, test_size=test_size, random_state=42)
+
+        save_path = os.path.join(ROOT_DIR, 'results','test_idx.txt')
+        np.savetxt(save_path,dummy_test.astype(int), delimiter=',')
 
         # init model
         model = get_model(args.model)
@@ -334,7 +343,8 @@ def training(X_cell, X_drug, Y, args):
         train_val_dataset, test_loader = dataloader_graph(X_trainval=X_trainval, X_test=X_test,\
             Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval = dummy_trainval, dummy_test=dummy_test, \
                  X2_trainval=X2_trainval, X2_test=X2_test,\
-                    X_sm1_trainval=X_sm1_trainval, X_sm1_test=X_sm1_test, X_sm2_trainval=X_sm2_trainval, X_sm2_test=X_sm2_test)
+                    X_sm1_trainval=X_sm1_trainval, X_sm1_test=X_sm1_test, X_sm2_trainval=X_sm2_trainval, X_sm2_test=X_sm2_test,\
+                        X_sm1_g_trainval=X_sm1_g_trainval, X_sm1_g_test=X_sm1_g_test, X_sm2_g_trainval=X_sm2_g_trainval, X_sm2_g_test=X_sm2_g_test)
 
         # load the best model
         if args.train_test_mode == 'test':

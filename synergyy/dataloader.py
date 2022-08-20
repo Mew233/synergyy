@@ -648,7 +648,7 @@ class MyDataset_trans(TensorDataset):
     def __getitem__(self, index):
 
         return (self.df.loc[index,0], self.df.loc[index,1], self.df.loc[index,2], self.df.loc[index,3], \
-         self.df.loc[index,4], self.df.loc[index,5])
+         self.df.loc[index,4], self.df.loc[index,5], self.df.loc[index,6], self.df.loc[index,7])
 
 
 def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
@@ -660,6 +660,9 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
     train_val_dataset_fps = temp_loader_trainval[3]
     train_val_dataset_sm1 = temp_loader_trainval[4]
     train_val_dataset_sm2 = temp_loader_trainval[5]
+
+    train_val_dataset_sm1g = temp_loader_trainval[6]
+    train_val_dataset_sm2g = temp_loader_trainval[7]
 
     # Configuration options
     k_folds = 5
@@ -679,7 +682,7 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
     # for fold, (train_ids, test_ids) in enumerate(skf.split(X,y)):
     
     trainval_df = [train_val_dataset_input,train_val_dataset_target,train_val_dataset_index,train_val_dataset_fps,
-    train_val_dataset_sm1,train_val_dataset_sm2]
+    train_val_dataset_sm1,train_val_dataset_sm2,train_val_dataset_sm1g,train_val_dataset_sm2g]
     trainval_df = pd.DataFrame(trainval_df).T
 
 
@@ -736,13 +739,16 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
                 data_sm1 = data[4]
                 data_sm2 = data[5]
 
+                data_sm1g = data[6]
+                data_sm2g = data[7]
+
                 targets = data_target.unsqueeze(1)
                                 
 
                 # Zero the gradients
                 optimizer.zero_grad()
                 # forward + backward + optimize
-                outputs = network(data1,fp=data_fp,sm1=data_sm1,sm2=data_sm2) #outputs = network(data1,fp=None)
+                outputs = network(data1,fp=data_fp,sm1=data_sm1,sm2=data_sm2,sm1g=data_sm1g,sm2g=data_sm2g) #outputs = network(data1,fp=None)
 
                 loss = loss_function(outputs, targets.to(torch.float32))
                 loss.backward()
@@ -774,10 +780,13 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
                 data_sm1 = data[4]
                 data_sm2 = data[5]
 
+                data_sm1g = data[6]
+                data_sm2g = data[7]
+
                 targets = data_target
 
                 # forward + backward + optimize
-                outputs = network(data1,fp=data_fp,sm1=data_sm1,sm2=data_sm2) #outputs = network(data1,fp=None)
+                outputs = network(data1,fp=data_fp,sm1=data_sm1,sm2=data_sm2,sm1g=data_sm1g,sm2g=data_sm2g) #outputs = network(data1,fp=None)
                 outputs = outputs.squeeze(1)
                 outputs = outputs.detach().numpy()
 
@@ -1243,15 +1252,21 @@ def evaluator_graph_trans(model,model_weights,train_val_dataset, temp_loader_tes
     test_dataset_index = temp_loader_test[2].tolist()
 
     test_dataset_fps = temp_loader_test[3]
+    test_dataset_sm1 = temp_loader_test[4]
+    test_dataset_sm2 = temp_loader_test[5]
 
-    test_df = [test_dataset, test_dataset_target, test_dataset_index, test_dataset_fps]
+    test_dataset_sm1g = temp_loader_test[6]
+    test_dataset_sm2g = temp_loader_test[7]
+
+    test_df = [test_dataset, test_dataset_target, test_dataset_index, test_dataset_fps,\
+        test_dataset_sm1,test_dataset_sm2,test_dataset_sm1g,test_dataset_sm2g]
     test_df = pd.DataFrame(test_df).T
 
     Dataset = MyDataset_trans 
     test_df = Dataset(test_df)
             
-    #test_loader = torch_geometric.data.DataLoader(test_df, batch_size=256,shuffle = False)
-    test_loader = DataLoader(test_df, batch_size=256,shuffle = False)
+    test_loader = torch_geometric.data.DataLoader(test_df, batch_size=256,shuffle = False)
+    # test_loader = DataLoader(test_df, batch_size=256,shuffle = False)
 
     predictions, actuals = list(), list()
 
@@ -1261,10 +1276,15 @@ def evaluator_graph_trans(model,model_weights,train_val_dataset, temp_loader_tes
         data_target = data[1]
 
         data_fp = data[3]
+        data_sm1 = data[4]
+        data_sm2 = data[5]
+        
+        data_sm1g = data[6]
+        data_sm2g = data[7]
 
         model.load_state_dict(torch.load(model_weights))
 
-        y_pred = model(data1,fp=data_fp)
+        y_pred = model(data1,fp=data_fp,sm1=data_sm1,sm2=data_sm2,sm1g=data_sm1g,sm2g=data_sm2g)
         y_pred = y_pred.detach().numpy()
 
         # actual output
