@@ -33,7 +33,7 @@ def prepare_data(args):
     print("loading synergy dataset ...")
     synergy_df = load_synergy(config['synergy_df'],args)
     print("loading drug features ...")
-    drugFeature_dicts = load_drug_features(args)
+    drugFeature_dicts = load_drug_features()
     print("loading cell line features ...")
     cellFeatures_dicts = load_cellline_features(config['cell_df'])
 
@@ -80,6 +80,17 @@ def prepare_data(args):
         for i in tqdm(range(synergy_df.shape[0])):
             row = synergy_df.iloc[i]
             X_cell[i,:] = cell_feats[row['cell']].values
+
+        # 这里对于hetergnn, 只return cell line name
+        if config['model_name'] == "hetergnn":
+            pesduoX_cell = []
+            for i in tqdm(range(synergy_df.shape[0])):
+                row = synergy_df.iloc[i]
+                # need to get unique value from string of cell
+                int_cell = int(re.findall(r'\d+',row['cell'])[0])
+                pesduoX_cell.append(int_cell)
+            X_cell = np.array(pesduoX_cell)
+
     else:
         X_cell = {}
         for feat_type in config['cell_omics']:
@@ -91,7 +102,7 @@ def prepare_data(args):
                     ## This is graph. append graph object to list
                     temp_X_cell.append(cell_feats[feat_type][row['cell']])
                 X_cell[feat_type] = temp_X_cell
-
+            
             else:
                 print(feat_type, cell_feats[feat_type].shape[0])
                 temp_cell = np.zeros((synergy_df.shape[0], cell_feats[feat_type].shape[0]))
@@ -120,6 +131,17 @@ def prepare_data(args):
                 ## This is graph. append graph object to list
                 temp_X_drug1.append(drugFeature_dicts[feat_type][int(row['drug1'])])
                 temp_X_drug2.append(drugFeature_dicts[feat_type][int(row['drug2'])])
+
+        elif feat_type =='hetero_graph':
+
+            temp_X_drug1 = np.zeros((synergy_df.shape[0], 1))
+            temp_X_drug2 = np.zeros((synergy_df.shape[0], 1))
+            for i in tqdm(range(synergy_df.shape[0])):
+                row = synergy_df.iloc[i]
+                temp_X_drug1[i,:] = int(row['drug1'])
+                temp_X_drug2[i,:] = int(row['drug2'])
+
+        #    pass 
 
         ## this is valid for tabular features
         else:
@@ -454,6 +476,47 @@ def training(X_cell, X_drug, Y, args):
             net_weights = 'best_model_%s.pth' % args.model
         elif args.train_test_mode == 'train':
             net_weights = k_fold_trainer_graph_TGSynergy(train_val_dataset,model,args)
+
+
+# --------------- hetergnn --------------- #
+    elif args.model == 'hetergnn':
+        X_cell_trainval, X_cell_test, \
+        X_hetero_graph_drug1_trainval, X_hetero_graph_drug1_test,\
+        X_hetero_graph_drug2_trainval, X_hetero_graph_drug2_test,\
+        Y_trainval, Y_test, dummy_trainval, dummy_test \
+        = train_test_split(X_cell, X_drug['hetero_graph_1'],X_drug['hetero_graph_2'], Y, \
+                                 dummy, test_size=test_size, random_state=42)
+
+        train_val_dataset, test_loader = dataloader(\
+            X_hetero_graph_drug1_trainval=X_hetero_graph_drug1_trainval, X_hetero_graph_drug1_test=X_hetero_graph_drug1_test,\
+            X_hetero_graph_drug2_trainval=X_hetero_graph_drug2_trainval, X_hetero_graph_drug2_test=X_hetero_graph_drug2_test,\
+            X_cell_trainval=X_cell_trainval, X_cell_test=X_cell_test,\
+            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval=dummy_trainval, dummy_test=dummy_test
+                )
+
+        save_path = os.path.join(ROOT_DIR, 'results','test_idx.txt')
+        np.savetxt(save_path,dummy_test.astype(int), delimiter=',')
+
+        # init model
+        save_path = os.path.join(ROOT_DIR, 'data', 'drug_data','input_drug_data.npy')
+        drugFeature_dicts = np.load(save_path, allow_pickle=True).item()
+        
+
+        graph = drugFeature_dicts["hetero_graph"][0]
+        dpi_dict = drugFeature_dicts["hetero_graph"][1]
+        cpi_dict = drugFeature_dicts["hetero_graph"][2]
+
+        # save_path = os.path.join(ROOT_DIR, 'results')
+        # selected_genes = list(np.loadtxt(os.path.join(save_path,'selected_genes.txt'), delimiter=',').astype(int))
+
+        model = get_model(args.model,graph,dpi_dict,cpi_dict)
+
+        # load the best model
+        if args.train_test_mode == 'test':
+            net_weights = 'best_model_%s.pth' % args.model
+        elif args.train_test_mode == 'train':
+            net_weights = k_fold_trainer(train_val_dataset,model,args)
+
 
     return model, net_weights, test_loader, train_val_dataset
 

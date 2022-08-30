@@ -10,7 +10,7 @@ from rdkit.Chem import Descriptors
 from rdkit.Chem.EState import Fingerprinter
 
 from utilitis import *
-
+import pgl
 
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -70,7 +70,10 @@ def load_synergy(dataset,args):
     def process_customized():
         drugcomb = process_drugcomb()
         drugcomb_colon = drugcomb[drugcomb['tissue_name'] == 'large_intestine']
-        crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % "exp"),sep=',')
+        drugcomb_colon = drugcomb_colon.drop_duplicates(subset=['drug1', 'drug2'])
+
+        # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % "exp"),sep=',')
+        crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tgca_colon_%s.csv' % "exp"),sep=',')
         # drugA = list(drugcomb['compound0_x'])
         # drugB = list(drugcomb['compound0_y'])
         summary_data = pd.DataFrame(columns=['drug1','drug2','cell','tissue_name','score'])
@@ -171,7 +174,8 @@ def load_cellline_features(dataset):
     
     def process_Customized():
         def load_file(postfix):
-            df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % postfix),sep=',')
+            # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % postfix),sep=',')
+            df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tgca_colon_%s.csv' % postfix),sep=',')
             return df
         # load all cell line features
         save_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized')
@@ -191,7 +195,7 @@ def load_cellline_features(dataset):
 
     
 
-def load_drug_features(args):
+def load_drug_features():
     
     supplier = rdkit.Chem.SDMolSupplier(os.path.join(ROOT_DIR, 'data', 'drug_data','structures.sdf'))
     molecules = [mol for mol in supplier if mol is not None]
@@ -262,22 +266,26 @@ def load_drug_features(args):
         return proessed_dpi
 
     ##RWR algorithm for drug-target from transynergy
-    def process_dpi_RWR(args):
+    def process_dpi_RWR():
         
         network = nx.read_edgelist(os.path.join(ROOT_DIR, 'data','cell_line_data','PPI','string_network'), delimiter='\t', nodetype=int,
                            data=(('weight', float),))
 
         # genes needed to be included in customized set
-        data_dicts = np.load(os.path.join(ROOT_DIR, 'data', 'cell_line_data',"Customized",'input_cellline_data.npy'),allow_pickle=True).item()
-        customized = data_dicts['exp']
+        # data_dicts = np.load(os.path.join(ROOT_DIR, 'data', 'cell_line_data',"Customized",'input_cellline_data.npy'),allow_pickle=True).item()
+        # customized = data_dicts['exp']
         data_dicts = np.load(os.path.join(ROOT_DIR, 'data', 'cell_line_data',"CCLE",'input_cellline_data.npy'),allow_pickle=True).item()
         ccle = data_dicts['exp']
+
+        customized = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data',"Customized",'crc_exp.csv'), index_col=0)
+        tcga = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data',"Customized",'tcga_colon_exp.csv'), index_col=0)
 
         #column is drugbank id, row is entrez id
         drug_target = pd.read_csv(os.path.join(ROOT_DIR, 'results','proessed_dpi.csv'), index_col=0)
         drug_target = drug_target.loc[drug_target.index.isin(list(network.nodes)), :]
         drug_target = drug_target.loc[drug_target.index.isin(list(ccle.index)), :]
         drug_target = drug_target.loc[drug_target.index.isin(list(customized.index)), :]
+        drug_target = drug_target.loc[drug_target.index.isin(list(tcga.index)), :]
 
         drug_target.fillna(0.00001, inplace = True)
 
@@ -328,6 +336,81 @@ def load_drug_features(args):
 
     #     return drug_targets_new
 
+    # ## for RGCN =============unfinished===============
+    def process_hetero_network():
+        ppi_data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','PPI','protein-protein_network.csv'))
+
+        tuples = [tuple(x) for x in ppi_data.values]
+        graph = nx.Graph()
+        graph.add_edges_from(tuples)
+
+        targets = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all.csv'))
+        drug_targets = explode_dpi(targets)
+        #deplete proteins in dpi, which not in ppi
+        selected_proteins = list(set(ppi_data['protein_a'])) + list(set(ppi_data['protein_b']))
+        drug_targets_new = drug_targets[(drug_targets['NCBI_ID'].isin(selected_proteins))]
+        
+        def get_target_dict(dpi_df):
+            dp_dict = collections.defaultdict(list)
+            drug_list = list(set(dpi_df['Drug IDs']))
+            for drug in drug_list:
+                drug_df = dpi_df[dpi_df['Drug IDs']==drug]
+                target = list(set(drug_df['NCBI_ID']))
+                dp_dict[drug] = target
+            return dp_dict
+        
+        dpi_dict = get_target_dict(drug_targets_new)
+
+        ## cpi
+        cpi_data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','CCLE_exp.csv'))
+        cpi_data.columns = ['Entrezid']+[split_it_cell(_) for _ in list(cpi_data.columns)[1:]]
+        #cell的名字需要转换成一个int , 从1到?
+        cpi_data['Entrezid'] = [split_it_cellName(_) for _ in list(cpi_data['Entrezid'])]
+        # cpi_data['Entrezid'] = [(range(len(cpi_data['Entrezid'])))]
+
+        df_transpose = cpi_data.T
+        # set first row as column
+        df_transpose.columns = df_transpose.iloc[0]
+        cell_targets = df_transpose.drop(df_transpose.index[0])
+        cell_targets_new = cell_targets[(cell_targets.index.isin(selected_proteins))].T
+        
+
+        def get_cell_target_dict(cpi_df):
+            cp_dict = collections.defaultdict(list)
+            cell_list = list(set(cpi_df.index))
+            
+            nodes_dict = dict(zip(range(len(cpi_df.columns)),cpi_df.columns))
+            
+            #选取128 个high exp protein
+            for cell in cell_list:
+                cell_df = cpi_df[cpi_df.index==cell]
+                _array = abs(cell_df.values).argsort(axis=1)[:,::-1][0][:128]
+                array = [nodes_dict[k] for k in _array]
+                
+                target = list(array)
+                cp_dict[cell] = target
+            return cp_dict
+
+        cpi_dict = get_cell_target_dict(cell_targets_new)
+        
+        # cpi_data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','CCLE_mut.csv'))
+        # CCLE_mu = cpi_data[['DepMap_ID', 'Entrez_Gene_Id']]
+        # CCLE_mu['DepMap_ID'] = CCLE_mu['DepMap_ID'].apply(lambda x: split_it_cellName(x))
+        # cell_targets_new = CCLE_mu[(CCLE_mu['Entrez_Gene_Id'].isin(selected_proteins))]
+
+        # def get_target_dict(cpi_df):
+        #     cp_dict = collections.defaultdict(list)
+        #     cell_list = list(set(cpi_df['DepMap_ID']))
+        #     for cell in cell_list:
+        #         cell_df = cpi_df[cpi_df['DepMap_ID']==cell]
+        #         target = list(set(cell_df['Entrez_Gene_Id']))
+        #         cp_dict[cell] = target
+        #     return cp_dict
+        
+        # cpi_dict = get_target_dict(cell_targets_new)
+
+
+        return graph, dpi_dict, cpi_dict
 
     def process_smiles():
         #padding for transynergy/transformer
@@ -393,10 +476,11 @@ def load_drug_features(args):
         data_dicts['smiles2graph'] = process_smiles2graph()
         data_dicts['smiles2graph_TGSynergy'] = process_smiles2graph_TGSynergy()
         #data_dicts['dpi_network'] = process_dpi_network()
+        data_dicts['hetero_graph'] = process_hetero_network()
         np.save(save_path, data_dicts)
     else:
         data_dicts = np.load(save_path,allow_pickle=True).item()
-        data_dicts['drug_target_rwr'] = process_dpi_RWR(args)
+        data_dicts['drug_target_rwr'] = process_dpi_RWR()
         data_dicts['drug_target_rwr'].columns = data_dicts['drug_target_rwr'].columns.values.astype(int)
 
         selected_genes = data_dicts['drug_target_rwr'].index
@@ -404,7 +488,9 @@ def load_drug_features(args):
         a = a.loc[a.index.isin(list(selected_genes)), :]
         data_dicts['drug_target'] = a
        
-        data_dicts['smiles'] = process_smiles()
+        ##hetergnn, 如果已保存data_dicts, 没有必要重新跑下面这两个
+        # data_dicts['hetero_graph'] = process_hetero_network()
+        
         np.save(save_path, data_dicts)
 
     return data_dicts

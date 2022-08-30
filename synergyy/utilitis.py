@@ -24,6 +24,10 @@ def split_it(compound):
 def split_it_cell(compound):
     return int(re.search(r'\((.*?)\)', compound).group(1))
 
+# split Cell line name like ACH-001113
+def split_it_cellName(compound):
+    return int(re.findall(r'\d+',compound)[0])
+
 def one_hot(mu,clean_cells_ALL,clean_genes_ALL):
     onehot_rows = list()
     for cell in clean_cells_ALL:
@@ -562,7 +566,7 @@ class Mapping():
         if item not in self.idx2item:
             self.idx2item.append(item)
             self.item2idx[item]=len(self.idx2item)-1
-            
+
 if __name__ == "__main__":
     # configuration_from_json()
     test = smile_to_graph('CC[C@H](C)[C@H](NC(=O)[C@H](CCC(O)=O)NC(=O)[C@H](CCC(O)=O)NC(=O)[C@H](CC1=CC=CC=C1)NC(=O)[C@H](CC(O)=O)NC(=O)CNC(=O)[C@H](CC(N)=O)NC(=O)CNC(=O)CNC(=O)CNC(=O)CNC(=O)[C@@H]1CCCN1C(=O)[C@H](CCCNC(N)=N)NC(=O)[C@@H]1CCCN1C(=O)[C@H](N)CC1=CC=CC=C1)C(=O)N1CCC[C@H]1C(=O)N[C@@H](CCC(O)=O)C(=O)N[C@@H](CCC(O)=O)C(=O)N[C@@H](CC1=CC=C(O)C=C1)C(=O)N[C@@H](CC(C)C)C(O)=O')

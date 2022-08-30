@@ -19,7 +19,7 @@ import random
 import pandas as pd
 import shap as sp
 from tqdm import tqdm
-
+import paddle.fluid.layers as fl
 torch.manual_seed(42)
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -154,8 +154,13 @@ def k_fold_trainer(dataset,model,args):
                     outputs = network(inputs[0],inputs[1],inputs[2])
                 elif args.model == 'multitaskdnn_kim':
                     outputs = network(inputs[0],inputs[1],inputs[2],inputs[3],inputs[4])
+                elif args.model == 'hetergnn':
+                    outputs, emb_loss = network(drug1=inputs[0], drug2=inputs[1], cell=inputs[2])
 
-                loss = loss_function(outputs, targets)
+                if args.model == 'hetergnn':
+                    loss = loss_function(outputs, targets) + emb_loss
+                else:
+                    loss = loss_function(outputs, targets)
                 loss.backward()
                 optimizer.step()
                 # Print statistics
@@ -187,6 +192,9 @@ def k_fold_trainer(dataset,model,args):
                     outputs = network(inputs[0],inputs[1],inputs[2])
                 elif args.model == 'multitaskdnn_kim':
                     outputs = network(inputs[0],inputs[1],inputs[2],inputs[3],inputs[4])
+                elif args.model == 'hetergnn':
+                    outputs, emb_loss = network(drug1=inputs[0], drug2=inputs[1], cell=inputs[2])
+
                 #outputs = network(inputs)
                 outputs = outputs.detach().numpy()
 
@@ -247,7 +255,6 @@ def k_fold_trainer(dataset,model,args):
     saveddf.to_csv(save_path, header=True, index=True, sep=",")
 
     return network_weights
-
 
 class MyDataset(TensorDataset):
     def __init__(self, trainval_df):
@@ -1108,6 +1115,8 @@ def evaluator(model,model_weights,train_val_dataset,test_loader, args):
             y_pred = model(inputs[0],inputs[1],inputs[2])
         elif args.model == 'multitaskdnn_kim':
             y_pred = model(inputs[0],inputs[1],inputs[2],inputs[3],inputs[4])
+        elif args.model == 'hetergnn':
+            y_pred, emb_loss = model(drug1=inputs[0], drug2=inputs[1], cell=inputs[2])
 
         y_pred = y_pred.detach().numpy()
 

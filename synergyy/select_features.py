@@ -46,6 +46,18 @@ def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, m
         data_dicts = np.load(os.path.join(ROOT_DIR, 'data', 'drug_data','input_drug_data.npy'),allow_pickle=True).item()
         selected_genes = data_dicts['drug_target_rwr'].index
         return selected_genes
+    
+    def filter_by_706_genes():
+        # following is copied from prepare_data
+        exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data', 'CCLE','exp.csv'), index_col=0)
+        gene_list = exp.columns.to_list()
+        gene_list = [int(gene[1:-1]) for gene in gene_list]
+
+        #
+        ppi_data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','PPI','protein-protein_network.csv'))
+        ppi_data_genes = set(list(ppi_data['protein_a']) + list(ppi_data['protein_b']))
+        selected_genes = list(set(gene_list) & set(ppi_data_genes))
+        return selected_genes
 
     # select genes based on criterion (variance or STRING)
     function_mapping = {'variance':'filter_by_variance', 'STRING':'filter_by_706_genes', 'dti':'filter_by_2000_genes'}

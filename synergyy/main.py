@@ -1,5 +1,5 @@
 import os
-os.environ["OMP_NUM_THREADS"] = "8"
+# os.environ["OMP_NUM_THREADS"] = "8"
 import argparse
 from prepare_data import *
 from select_features import *
@@ -16,26 +16,27 @@ def arg_parse():
                         help='synergy threshold (default: loewe score)')
     parser.add_argument('--batch_size', type=int, default=256,
                         help='batch size (default: 256)')
-    parser.add_argument('--epochs', type=int, default=5,
+    parser.add_argument('--epochs', type=int, default=50,
                         help='maximum number of epochs (default: 50)')
-    parser.add_argument('--train_test_mode', type=str, default='test',
+    parser.add_argument('--train_test_mode', type=str, default='train',
                         help='train or test')
     parser.add_argument('--SHAP_analysis', type=bool, default=False)
     parser.add_argument('--model', type=str, default='transynergy_liu',
                         help='import model (default: multitaskdnn_kim)')
                         #options are 'LR','XGBOOST','RF','ERT','deepsynergy_preuer','multitaskdnn_kim',
-                        # 'matchmaker_brahim','deepdds_wang','TGSynergy','transynergy_liu')
+                        # 'matchmaker_brahim','deepdds_wang','TGSynergy','transynergy_liu', 'hetergnn')
 
 # --------------- Parse configuration  --------------- #
 
-    parser.add_argument('--synergy_df', type=str, default='Customized',
+    parser.add_argument('--synergy_df', type=str, default='DrugComb',
                         help = 'DrugComb or Sanger2022 or Customized')
-    parser.add_argument('--external_validation', type=bool, default=True,
+    parser.add_argument('--external_validation', type=bool, default=False,
                         required=False, help = 'True for Sanger2022 or customized')
-    parser.add_argument('--drug_omics', nargs="+", default=['drug_target_rwr','morgan_fingerprint','smiles','smiles2graph_TGSynergy'],
+    parser.add_argument('--drug_omics', nargs="+", default=["drug_target_rwr", "morgan_fingerprint", "smiles", "smiles2graph_TGSynergy"],
                         required=False, help='drug_target/drug_target_rwr/morgan_fingerprint\
-                            /smiles2graph/smiles2graph_TGSynergy/chemical_descriptor/smiles')    
-    parser.add_argument('--cell_df', type=str, default='Customized',
+                            /smiles2graph/smiles2graph_TGSynergy/chemical_descriptor/smiles\
+                            hetero_graph/'    )    
+    parser.add_argument('--cell_df', type=str, default='CCLE',
                         help='"CCLE","Customized"')
     parser.add_argument('--cell_omics', nargs="+", default=['exp'],
                         required=False, help='"exp","cn","mut","GNN_cell')

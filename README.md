@@ -47,7 +47,7 @@ https://drive.google.com/drive/folders/1Uu0YZSxX8GQtV_4ZJmsMrbanmse-Dq6n?usp=sha
 |  Multitask_DNN |    exp  |  Morgan or MACCS fingerprints, Drug-target interaction    |     DNN   | DNN     |  | False| False |
 | Graph based: DeepDDS|    exp |  SMILES2Graph   |     MLP   |   GCN   | | | False |
 | Graph based: TGSynergy (modified from TGSA)|    exp |  SMILES2Graph   |     GCN   |   GCN   | | | False |
-| Graph based: TranSynergy|    exp |  Network propagated Drug-target interaction   |     Transformer   |   GCN(RWR)+Transformer   | | | False |
+| Graph based: TranSynergy|    exp |  Network propagated Drug-target interaction or morgan_fingerprint,smiles,smiles2graph   |     Transformer   |   GCN(RWR)+Transformer   | | | False |
 | Graph based: GraphSynergy|   cell_protein,PPI network | drug_protein,PPI network  |  GCN    |   GCN  | | | False |
 ****
 #### Data downloaded
@@ -68,7 +68,7 @@ In detail, the following drug synergy prediction models were implemented.
     - [4] [Jinxian Wang, Xuejun Liu, Siyuan Shen, Lei Deng, and Hui Liu. DeepDDS: Deep Graph Neural Network with Attention Mechanism to Predict Synergistic Drug Combinations. Briefings in Bioinformatics, 09 2021](https://academic.oup.com/bib/article/23/1/bbab390/6375262)
     - [5] [Yiheng Zhu, Zhenqiu Ouyang, Wenbo Chen, Ruiwei Feng, Danny Z Chen, Ji Cao, Jian Wu, TGSA: protein–protein association-based twin graph neural networks for drug response prediction with similarity augmentation, Bioinformatics, Volume 38, Issue 2, 15 January 2022, Pages 461–468](https://academic.oup.com/bioinformatics/article-abstract/38/2/461/6374919?redirectedFrom=fulltext)
     - [6] [Liu, Qiao, and Lei Xie. "TranSynergy: Mechanism-driven interpretable deep neural network for the synergistic prediction and pathway deconvolution of drug combinations." PLoS computational biology 17.2 (2021): e1008653.](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1008653&ref=https://githubhelp.com)
-    - [7] []()
+    - [7] [Yang, Jiannan, Zhongzhi Xu, William Ka Kei Wu, Qian Chu, and Qingpeng Zhang. "GraphSynergy: a network-inspired deep learning model for anticancer drug combination prediction." Journal of the American Medical Informatics Association 28, no. 11 (2021): 2336-2345.](https://academic.oup.com/jamia/article/28/11/2336/6362567)
 ****
 
 #### Customized dataset
