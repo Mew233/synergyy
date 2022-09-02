@@ -19,7 +19,7 @@ import random
 import pandas as pd
 import shap as sp
 from tqdm import tqdm
-import paddle.fluid.layers as fl
+
 torch.manual_seed(42)
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 

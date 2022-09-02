@@ -1,5 +1,5 @@
 import os
-# os.environ["OMP_NUM_THREADS"] = "8"
+os.environ["OMP_NUM_THREADS"] = "12"
 import argparse
 from prepare_data import *
 from select_features import *
@@ -16,9 +16,9 @@ def arg_parse():
                         help='synergy threshold (default: loewe score)')
     parser.add_argument('--batch_size', type=int, default=256,
                         help='batch size (default: 256)')
-    parser.add_argument('--epochs', type=int, default=50,
+    parser.add_argument('--epochs', type=int, default=60,
                         help='maximum number of epochs (default: 50)')
-    parser.add_argument('--train_test_mode', type=str, default='train',
+    parser.add_argument('--train_test_mode', type=str, default='test',
                         help='train or test')
     parser.add_argument('--SHAP_analysis', type=bool, default=False)
     parser.add_argument('--model', type=str, default='transynergy_liu',
@@ -28,15 +28,15 @@ def arg_parse():
 
 # --------------- Parse configuration  --------------- #
 
-    parser.add_argument('--synergy_df', type=str, default='DrugComb',
+    parser.add_argument('--synergy_df', type=str, default='Customized',
                         help = 'DrugComb or Sanger2022 or Customized')
-    parser.add_argument('--external_validation', type=bool, default=False,
+    parser.add_argument('--external_validation', type=bool, default=True,
                         required=False, help = 'True for Sanger2022 or customized')
     parser.add_argument('--drug_omics', nargs="+", default=["drug_target_rwr", "morgan_fingerprint", "smiles", "smiles2graph_TGSynergy"],
                         required=False, help='drug_target/drug_target_rwr/morgan_fingerprint\
                             /smiles2graph/smiles2graph_TGSynergy/chemical_descriptor/smiles\
                             hetero_graph/'    )    
-    parser.add_argument('--cell_df', type=str, default='CCLE',
+    parser.add_argument('--cell_df', type=str, default='Customized',
                         help='"CCLE","Customized"')
     parser.add_argument('--cell_omics', nargs="+", default=['exp'],
                         required=False, help='"exp","cn","mut","GNN_cell')

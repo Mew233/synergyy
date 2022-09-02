@@ -10,7 +10,6 @@ from rdkit.Chem import Descriptors
 from rdkit.Chem.EState import Fingerprinter
 
 from utilitis import *
-import pgl
 
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -73,7 +72,7 @@ def load_synergy(dataset,args):
         drugcomb_colon = drugcomb_colon.drop_duplicates(subset=['drug1', 'drug2'])
 
         # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % "exp"),sep=',')
-        crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tgca_colon_%s.csv' % "exp"),sep=',')
+        crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tcga_colon_%s.csv' % "exp"),sep=',')
         # drugA = list(drugcomb['compound0_x'])
         # drugB = list(drugcomb['compound0_y'])
         summary_data = pd.DataFrame(columns=['drug1','drug2','cell','tissue_name','score'])
@@ -82,6 +81,9 @@ def load_synergy(dataset,args):
             drugcomb_colon['cell'] = crc_cell
             drugcomb_colon['score'] = 0
             summary_data = summary_data.append(drugcomb_colon, ignore_index=True)
+
+        #Drop duplicates
+        summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','tissue_name','score'])
 
         return summary_data
 
@@ -175,7 +177,7 @@ def load_cellline_features(dataset):
     def process_Customized():
         def load_file(postfix):
             # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % postfix),sep=',')
-            df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tgca_colon_%s.csv' % postfix),sep=',')
+            df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tcga_colon_%s.csv' % postfix),sep=',')
             return df
         # load all cell line features
         save_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized')
@@ -187,6 +189,9 @@ def load_cellline_features(dataset):
             np.save(save_path, data_dicts)
         else:
             data_dicts = np.load(save_path,allow_pickle=True).item()
+            for file_type in ['exp']: #only exp have
+                data_dicts[ file_type ] = load_file(file_type)
+    
         return data_dicts
 
     data = locals()[function_mapping[dataset]]()
@@ -491,7 +496,7 @@ def load_drug_features():
         ##hetergnn, 如果已保存data_dicts, 没有必要重新跑下面这两个
         # data_dicts['hetero_graph'] = process_hetero_network()
         
-        np.save(save_path, data_dicts)
+        # np.save(save_path, data_dicts)
 
     return data_dicts
 
