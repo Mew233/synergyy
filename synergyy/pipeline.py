@@ -1,6 +1,7 @@
 """
     A collection of full training and evaluation pipelines.
 """
+from curses.ascii import DC2
 from logging import raiseExceptions
 from stringprep import in_table_a1
 import numpy as np 
@@ -20,7 +21,8 @@ from prepare_data import *
 from select_features import *
 from get_model import get_model
 from dataloader import dataloader, dataloader_graph, k_fold_trainer, k_fold_trainer_graph, evaluator, evaluator_graph,\
-    k_fold_trainer_graph_TGSynergy,evaluator_graph_TGSynergy, k_fold_trainer_graph_trans, evaluator_graph_trans
+    k_fold_trainer_graph_TGSynergy,evaluator_graph_TGSynergy, k_fold_trainer_graph_trans, evaluator_graph_trans,\
+        k_fold_trainer_graph_combonet,evaluator_graph_combonet
 from dataloader import SHAP
 import torch_geometric.data
 from utilitis import smile_to_graph
@@ -35,7 +37,7 @@ def prepare_data(args):
     print("loading drug features ...")
     drugFeature_dicts = load_drug_features()
     print("loading cell line features ...")
-    cellFeatures_dicts = load_cellline_features(config['cell_df'])
+    cellFeatures_dicts = load_cellline_features(config['cell_df'],args)
 
 
     # get full drug set and cell line set
@@ -190,9 +192,16 @@ def prepare_data(args):
 
     
     Y_score = (synergy_df['score']>args.synergy_thres).astype(int).values
+    try:
+        Y_ic1 = (synergy_df['ic_1']>args.ri_thres).astype(int).values
+        Y_ic2 = (synergy_df['ic_2']>args.ri_thres).astype(int).values
+    except:
+        print('Not using RI here')
+        Y_ic1 = None
+        Y_ic2 = None
+        pass
 
-
-    return X_cell, X_drug, Y_score
+    return X_cell, X_drug, Y_score, Y_ic1, Y_ic2
 
 def training_baselines(X_cell, X_drug, Y, args):
     if args.external_validation:
@@ -234,9 +243,9 @@ def training_baselines(X_cell, X_drug, Y, args):
     return rfc_fit, scores, test_loader
 
 
-def training(X_cell, X_drug, Y, args):
+def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
     if args.external_validation:
-        test_size = 0.99999 #0.9999
+        test_size = 0.9 #0.9999,0.99999
     else:
         test_size = 0.2
     
@@ -314,6 +323,41 @@ def training(X_cell, X_drug, Y, args):
             net_weights = 'best_model_%s.pth' % args.model
         elif args.train_test_mode == 'train':
             net_weights = k_fold_trainer(train_val_dataset,model,args)
+
+# --------------- combonet --------------- #
+    elif args.model == 'combonet':
+        X, X2, X3 = [],[],[]
+        for index, (d1, d2, cell) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell)):
+            t = torch.from_numpy(np.vstack((d1,cell))).float()
+            # t = torch.from_numpy(np.expand_dims(d1, axis=0)).float()
+            t2 = torch.from_numpy(np.vstack((d2,cell))).float()
+            t3 = torch.from_numpy(np.vstack((d1,d2,cell))).float()
+            X.append(t.float())
+            X2.append(t2.float())
+            X3.append(t3.float())
+
+        #len(max(smiles_list, key = len)) is 244
+
+        X_trainval, X_test, Y_trainval, Y_test, dummy_trainval, dummy_test, X2_trainval, X2_test,  \
+            X3_trainval, X3_test, Yic1_trainval, Yic1_test, Yic2_trainval, Yic2_test,\
+            = train_test_split(X, Y, dummy, X2, X3,Y_ic1, Y_ic2, test_size=test_size, random_state=42)
+
+        save_path = os.path.join(ROOT_DIR, 'results','test_idx.txt')
+        np.savetxt(save_path,dummy_test.astype(int), delimiter=',')
+
+        # init model
+        model = get_model(args.model)
+        # train_val set for k-fold, test set for testing
+        train_val_dataset, test_loader = dataloader_graph(X_trainval=X_trainval, X_test=X_test,\
+            Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval = dummy_trainval, dummy_test=dummy_test, \
+                 X2_trainval=X2_trainval, X2_test=X2_test,X3_trainval=X3_trainval, X3_test=X3_test,\
+                    Yic1_trainval=Yic1_trainval, Yic1_test=Yic1_test, Yic2_trainval=Yic2_trainval, Yic2_test=Yic2_test)
+
+        # load the best model
+        if args.train_test_mode == 'test':
+            net_weights = 'best_model_%s.pth' % args.model
+        elif args.train_test_mode == 'train':
+            net_weights = k_fold_trainer_graph_combonet(train_val_dataset,model,args)
 
 # --------------- transynergy --------------- #
     elif args.model == 'transynergy_liu':
@@ -540,6 +584,10 @@ def evaluate(model, model_weights, test_loader, train_val_dataset, args):
     elif args.model in ['transynergy_liu']:
         
         actuals, predictions, shap_df, features_df, expected_value = evaluator_graph_trans(model, model_weights,train_val_dataset, test_loader, args)
+    
+    elif args.model in ['combonet']:
+
+        actuals, predictions, shap_df, features_df, expected_value = evaluator_graph_combonet(model, model_weights,train_val_dataset, test_loader, args)
 
     else:
         actuals, predictions, shap_df, features_df, expected_value  = evaluator(model, model_weights,train_val_dataset, test_loader, args)

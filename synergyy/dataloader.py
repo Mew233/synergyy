@@ -726,9 +726,25 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
         for layer in network.modules():
             if hasattr(layer, 'reset_parameters'):
                 layer.reset_parameters()
-
+        
         # Initialize optimizer
         optimizer = torch.optim.Adam(network.parameters(), lr=1e-4)
+
+        ## fine-tuning 
+        if args.fine_tuning == True:
+            network.load_state_dict(torch.load('best_model_%s_default.pth' % args.model))
+            #Examine the layer's ID that we'd like to fix or free
+            for i, param in enumerate(network.parameters()):
+                print(i, param.size(), param.requires_grad)
+            release_after = 53
+            for i, param in enumerate(network.parameters()):
+                if 50<=i<=release_after:
+                    param.requires_grad=True
+                else:
+                    param.requires_grad=False
+
+            num_epochs = 10
+            optimizer = torch.optim.Adam(network.parameters(), lr=1e-5)
 
         for epoch in range(0, num_epochs):
 
@@ -738,6 +754,7 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
 
             # Iterate over the DataLoader for training data
             for i, data in enumerate(trainloader):
+                model.train()
                 data1 = data[0]
                 data_target = data[1]
                 data_index = data[2]
@@ -779,6 +796,8 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
             idx = list()
 
             for i, data in enumerate(valloader):
+                network.eval()
+
                 data1 = data[0]
                 data_target = data[1]
                 data_index = data[2]
@@ -794,6 +813,221 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
 
                 # forward + backward + optimize
                 outputs = network(data1,fp=data_fp,sm1=data_sm1,sm2=data_sm2,sm1g=data_sm1g,sm2g=data_sm2g) #outputs = network(data1,fp=None)
+                outputs = outputs.squeeze(1)
+                outputs = outputs.detach().numpy()
+
+                # actual output
+                actual = targets.numpy()
+                actual = actual.reshape(len(actual), 1)
+
+                indices = data_index.numpy()
+                indices = indices.reshape(len(indices), 1)
+
+                # store the values in respective lists
+                predictions.append(list(outputs))
+                actuals.append(list(actual))
+                idx.append(list(indices))
+                
+        actuals = [val for sublist in np.vstack(list(chain(*actuals))) for val in sublist]
+        predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
+        idx = [val for sublist in np.vstack(list(chain(*idx))) for val in sublist]
+
+        try:
+            auc = roc_auc_score(y_true=actuals, y_score=predictions)
+        except ValueError:
+            auc = 0
+
+        meta_clf_pred.append(predictions)
+        meta_clf_acts.append(actuals)
+        meta_clf_index.append(idx)
+
+        # Print accuracy
+        print(f'Accuracy for fold %d: %f' % (fold, auc))
+        print('--------------------------------')
+        results[fold] = auc
+    
+            # Saving the best model
+        if results[fold] >= max(results.values()):
+            save_path = os.path.join(ROOT_DIR, 'best_model_%s.pth' % args.model)
+            torch.save(network.state_dict(), save_path)
+
+    # Print fold results
+    print(f'K-FOLD CROSS VALIDATION RESULTS FOR {k_folds} FOLDS')
+    print('--------------------------------')
+    sum = 0.0
+    for key, value in results.items():
+        print(f'Fold {key}: {value}')
+        sum += value
+    print(f'Average: {sum/len(results.items())}')
+
+    network_weights = 'best_model_%s.pth' % args.model
+
+    # save 5-fold evaluation results
+    meta_clf_acts = [val for sublist in np.vstack(list(chain(*meta_clf_acts))) for val in sublist]
+    meta_clf_pred = [val for sublist in np.vstack(list(chain(*meta_clf_pred))) for val in sublist]
+    meta_clf_index = [val for sublist in np.vstack(list(chain(*meta_clf_index))) for val in sublist]
+
+    saveddf = pd.DataFrame(np.column_stack([meta_clf_index,meta_clf_acts,meta_clf_pred]),\
+                columns=['index','actuals','metapredicts_%s' % args.model])
+    save_path = os.path.join(ROOT_DIR, 'results','meta_clf','metapredicts_%s_%s.txt' % (args.model, args.synergy_df))
+    saveddf.to_csv(save_path, header=True, index=True, sep=",")
+
+    return network_weights
+
+class MyDataset_combonet(TensorDataset):
+    def __init__(self, trainval_df):
+        super(MyDataset_combonet, self).__init__()
+        self.df = trainval_df
+        #self.df.reset_index(drop=True, inplace=True)  
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, index):
+
+        return (self.df.loc[index,0], self.df.loc[index,1], self.df.loc[index,2], self.df.loc[index,3],
+        self.df.loc[index,4],self.df.loc[index,5],self.df.loc[index,6])
+
+
+def k_fold_trainer_graph_combonet(temp_loader_trainval,model,args):
+
+    train_val_dataset_input = temp_loader_trainval[0]
+    train_val_dataset_target = temp_loader_trainval[1].tolist()
+    train_val_dataset_index = temp_loader_trainval[2].tolist()
+    train_val_dataset_input2 = temp_loader_trainval[3]
+    train_val_dataset_input3 = temp_loader_trainval[4]
+
+    train_val_dataset_ic1 = temp_loader_trainval[5].tolist()
+    train_val_dataset_ic2 = temp_loader_trainval[6].tolist()
+
+    # Configuration options
+    k_folds = 5
+    num_epochs = 50
+    batch_size = 256
+
+    loss_function = nn.BCELoss()
+    # For fold results
+    results = {}
+
+    kfold = KFold(n_splits=k_folds, random_state=42, shuffle=True)
+
+    # Start print
+    print('--------------------------------')
+
+    # K-fold Cross Validation model evaluation
+    # for fold, (train_ids, test_ids) in enumerate(skf.split(X,y)):
+    
+    trainval_df = [train_val_dataset_input,train_val_dataset_target,train_val_dataset_index,train_val_dataset_input2,\
+        train_val_dataset_input3,train_val_dataset_ic1,train_val_dataset_ic2]
+    trainval_df = pd.DataFrame(trainval_df).T
+
+
+    # save 5-fold evalutation results for meta classifier
+    meta_clf_pred = []
+    meta_clf_acts = []
+    meta_clf_index = []
+
+    for fold, (train_ids, test_ids) in enumerate(kfold.split(trainval_df)):
+        # Print
+        print(f'FOLD {fold}')
+        print('--------------------------------')
+        # Sample elements randomly from a given list of ids, no replacement.
+        torch.manual_seed(42)
+        train_subsampler = torch.utils.data.SubsetRandomSampler(train_ids)
+        test_subsampler = torch.utils.data.SubsetRandomSampler(test_ids)
+        
+        #(Graph) For graph object needed to use torch_geometric.data.DataLoader
+        if args.model == 'combonet':
+            
+            Dataset = MyDataset_combonet
+            # self define dataset
+            train_dataset = Dataset(trainval_df)
+            
+            trainloader = torch_geometric.data.DataLoader(train_dataset, batch_size=batch_size,
+                              sampler=train_subsampler)
+            valloader = torch_geometric.data.DataLoader(train_dataset, batch_size=batch_size,
+                              sampler=test_subsampler)
+        
+
+        # Init the neural network
+        network = model
+        # init para for each fold
+        for layer in network.modules():
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
+
+        # Initialize optimizer
+        optimizer = torch.optim.Adam(network.parameters(), lr=1e-4)
+
+        for epoch in range(0, num_epochs):
+
+            print(f'Starting epoch {epoch+1}')
+            # Set current loss value
+
+            def training(isAux, trainloader):
+                current_loss = 0.0
+            # Iterate over the DataLoader for training data
+                for i, data in enumerate(trainloader):
+                    data1 = data[0]
+                    data_target = data[1]
+                    data_index = data[2]
+                    data2 = data[3]
+                    data3 = data[4]
+
+                    ic1 = data[5]
+                    ic2 = data[6]
+
+                    targets = data_target.unsqueeze(1)
+                                    
+
+                    # Zero the gradients
+                    optimizer.zero_grad()
+                    # forward + backward + optimize
+                    outputs, score1, score2 = network(data1,data2,data3)
+
+                    if not isAux:
+                        loss = loss_function(outputs, targets.to(torch.float32))
+                    else:
+                        loss = loss_function(score1, ic1.view(-1,1).to(torch.float32))\
+                            +loss_function(score2, ic2.view(-1,1).to(torch.float32))
+
+                    loss.backward()
+                    optimizer.step()
+                    # Print statistics
+                    current_loss += loss.item()
+                    if i % 100 == 99:
+                        print('Loss after mini-batch %5d: %.3f' %
+                            (i + 1, current_loss / 100))
+                        current_loss = 0.0
+            training(False, trainloader)
+            training(True, trainloader)
+
+            # Process is complete.
+            # print('Training process has finished.')
+
+            # print('Starting validation')
+
+
+        # Evaluation for this fold
+        with torch.no_grad():
+            predictions, actuals = list(), list()
+            idx = list()
+
+            for i, data in enumerate(valloader):
+                network.eval()
+
+                data1 = data[0]
+                data_target = data[1]
+                data_index = data[2]
+                data2 = data[3]
+                data3 = data[4]
+
+                ic1 = data[4]
+                ic2 = data[5]
+
+                targets = data_target
+
+                # forward + backward + optimize
+                outputs, score1, score2 = network(data1,data2,data3)
                 outputs = outputs.squeeze(1)
                 outputs = outputs.detach().numpy()
 
@@ -1255,6 +1489,8 @@ def evaluator_graph_TGSynergy(model,model_weights,train_val_dataset, temp_loader
 
 def evaluator_graph_trans(model,model_weights,train_val_dataset, temp_loader_test,args):
 # For graph, the dataloader should be imported from torch geometric
+    model.eval()
+    model.load_state_dict(torch.load(model_weights))
 
     test_dataset= temp_loader_test[0]
     test_dataset_target = temp_loader_test[1].tolist()
@@ -1291,9 +1527,67 @@ def evaluator_graph_trans(model,model_weights,train_val_dataset, temp_loader_tes
         data_sm1g = data[6]
         data_sm2g = data[7]
 
-        model.load_state_dict(torch.load(model_weights))
+        # model.load_state_dict(torch.load(model_weights))
 
         y_pred = model(data1,fp=data_fp,sm1=data_sm1,sm2=data_sm2,sm1g=data_sm1g,sm2g=data_sm2g)
+        y_pred = y_pred.detach().numpy()
+
+        # actual output
+        actual = data_target.numpy()
+        actual = actual.reshape(len(actual), 1)
+        # store the values in respective lists
+        predictions.append(list(y_pred))
+        actuals.append(list(actual))
+
+    actuals = [val for sublist in np.vstack(list(chain(*actuals))) for val in sublist]
+    predictions = [val for sublist in np.vstack(list(chain(*predictions))) for val in sublist]
+
+    if args.SHAP_analysis == True:
+        #unimplemented
+        shap_df, features_df, expected_value = SHAP(model, model_weights,train_val_dataset, test_loader,args)
+        #pass
+    else:
+        shap_df = None
+        features_df = None
+        expected_value = None
+    return actuals, predictions, shap_df, features_df, expected_value
+
+
+def evaluator_graph_combonet(model,model_weights,train_val_dataset, temp_loader_test,args):
+# For graph, the dataloader should be imported from torch geometric
+    model.eval()
+    model.load_state_dict(torch.load(model_weights))
+
+    test_dataset= temp_loader_test[0]
+    test_dataset_target = temp_loader_test[1].tolist()
+    test_dataset_index = temp_loader_test[2].tolist()
+    test_dataset2 = temp_loader_test[3]
+
+    train_val_dataset_ic1 = temp_loader_test[4].tolist()
+    train_val_dataset_ic2 = temp_loader_test[5].tolist()
+
+    test_df = [test_dataset, test_dataset_target, test_dataset_index,test_dataset2,\
+        train_val_dataset_ic1,train_val_dataset_ic2]
+    test_df = pd.DataFrame(test_df).T
+
+    Dataset = MyDataset_combonet 
+    test_df = Dataset(test_df)
+            
+    test_loader = torch_geometric.data.DataLoader(test_df, batch_size=256,shuffle = False)
+    # test_loader = DataLoader(test_df, batch_size=256,shuffle = False)
+
+    predictions, actuals = list(), list()
+
+    for i, data in enumerate(test_loader):
+        
+        data1 = data[0]
+        data_target = data[1]
+        data_index = data[2]
+        data2 = data[3]
+
+        # model.load_state_dict(torch.load(model_weights))
+
+        y_pred, score1, score2 = model(data1,data2)
         y_pred = y_pred.detach().numpy()
 
         # actual output

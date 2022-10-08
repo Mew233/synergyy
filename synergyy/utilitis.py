@@ -376,9 +376,9 @@ class Norm(nn.Module):
         return norm
         
 class EncoderLayer(nn.Module):
-    def __init__(self, d_input, d_model, heads, dropout=0.1):
+    def __init__(self, d_model, heads, dropout=0.1):
         super().__init__()
-        self.input_linear = nn.Linear(d_input, d_model)
+        #self.input_linear = nn.Linear(d_input, d_model)
         self.norm_1 = Norm(d_model)
         self.norm_2 = Norm(d_model)
         self.attn = MultiHeadAttention(heads, d_model, dropout=dropout)
@@ -387,8 +387,6 @@ class EncoderLayer(nn.Module):
         self.dropout_2 = nn.Dropout(dropout)
 
     def forward(self, x, mask=None):
-
-        x = F.relu(self.input_linear(x))
         x2 = self.norm_1(x)
         x = x + self.dropout_1(self.attn(x2, x2, x2, mask))
         x2 = self.norm_2(x)
@@ -482,7 +480,7 @@ class MultiHeadAttention(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, d_model, d_ff=512, dropout=0.1):
+    def __init__(self, d_model, d_ff=256, dropout=0.1):
         super().__init__()
 
         # We set d_ff as a default to 2048

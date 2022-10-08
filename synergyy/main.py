@@ -14,17 +14,21 @@ def arg_parse():
                         help='seed')
     parser.add_argument('--synergy_thres', type=int, default=0,
                         help='synergy threshold (default: loewe score)')
+    parser.add_argument('--ri_thres', type=int, default=50,
+                        help='percentage inhibition')
     parser.add_argument('--batch_size', type=int, default=256,
                         help='batch size (default: 256)')
     parser.add_argument('--epochs', type=int, default=50,
                         help='maximum number of epochs (default: 50)')
     parser.add_argument('--train_test_mode', type=str, default='train',
                         help='train or test')
+    parser.add_argument('--fine_tuning', type=str, default=False,
+                        help='fine tuning for corrected batch of CCLE before external validation')
     parser.add_argument('--SHAP_analysis', type=bool, default=False)
-    parser.add_argument('--model', type=str, default='transynergy_liu',
-                        help='import model (default: multitaskdnn_kim)')
+    parser.add_argument('--model', type=str, default='combonet',
+                        help='import model (default: transynergy_liu)')
                         #options are 'LR','XGBOOST','RF','ERT','deepsynergy_preuer','multitaskdnn_kim',
-                        # 'matchmaker_brahim','deepdds_wang','TGSynergy','transynergy_liu', 'hetergnn')
+                        # 'matchmaker_brahim','deepdds_wang','TGSynergy','transynergy_liu', 'hetergnn',"combonet")
 
 # --------------- Parse configuration  --------------- #
 
@@ -32,7 +36,7 @@ def arg_parse():
                         help = 'DrugComb or Sanger2022 or Customized')
     parser.add_argument('--external_validation', type=bool, default=False,
                         required=False, help = 'True for Sanger2022 or customized')
-    parser.add_argument('--drug_omics', nargs="+", default=["drug_target_rwr", "morgan_fingerprint", "smiles", "smiles2graph_TGSynergy"],
+    parser.add_argument('--drug_omics', nargs="+", default=["drug_target_rwr"],
                         required=False, help='drug_target/drug_target_rwr/morgan_fingerprint\
                             /smiles2graph/smiles2graph_TGSynergy/chemical_descriptor/smiles\
                             hetero_graph/'    )    
@@ -56,7 +60,7 @@ def main():
     args = arg_parse()
 
     write_config(args)
-    X_cell, X_drug, Y = prepare_data(args)
+    X_cell, X_drug, Y, Y_ic1, Y_ic2, = prepare_data(args)
     print("data loaded")
     if args.model in ['LR','XGBOOST','RF','ERT']:
         model, scores, test_loader, train_val_dataset = training_baselines(X_cell, X_drug, Y, args)
@@ -70,7 +74,7 @@ def main():
 
     # for deep learning models
     else:
-        model, network_weights, test_loader, train_val_dataset = training(X_cell, X_drug, Y, args)
+        model, network_weights, test_loader, train_val_dataset = training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args)
         print("training finished")
         val_results = evaluate(model, network_weights, test_loader, train_val_dataset, args)
         print("testing started")
