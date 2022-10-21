@@ -4,13 +4,12 @@ import collections
 import os
 from rdkit.Chem import AllChem
 import rdkit
-
+import pickle
 from rdkit.ML.Descriptors import MoleculeDescriptors
 from rdkit.Chem import Descriptors
 from rdkit.Chem.EState import Fingerprinter
 
 from utilitis import *
-import pgl
 
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -29,11 +28,11 @@ def load_synergy(dataset,args):
     def process_drugcomb():
         data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','DrugComb','drugcomb_trueset_NoDup.csv'))
         data = data[['drug_row', 'drug_col','cell_line_name','study_name','tissue_name',\
-          'synergy_zip','synergy_loewe','synergy_hsa','synergy_bliss','DepMap_ID_x','RRID_x',\
+          'synergy_zip','synergy_loewe','synergy_hsa','synergy_bliss','DepMap_ID','RRID',\
           'pubchemID_x','compound0_x','pubchemID_y','compound0_y',\
             'ri_row', 'ri_col']]
 
-        data_trim = data[['compound0_x','compound0_y','DepMap_ID_x','tissue_name','synergy_loewe',\
+        data_trim = data[['compound0_x','compound0_y','DepMap_ID','tissue_name','synergy_loewe',\
             'ri_row', 'ri_col']]
 
         ## clean the scores
@@ -52,8 +51,8 @@ def load_synergy(dataset,args):
         # # some experiments may fail and get NA values, drop these experiments
         summary_data = data_trim.dropna()
 
-        summary_data = summary_data[['compound0_x','compound0_y','DepMap_ID_x','tissue_name','synergy_loewe','ri_row', 'ri_col']].rename(columns={\
-            'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID_x':'cell','synergy_loewe':'score',\
+        summary_data = summary_data[['compound0_x','compound0_y','DepMap_ID','tissue_name','synergy_loewe','ri_row', 'ri_col']].rename(columns={\
+            'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID':'cell','synergy_loewe':'score',\
                 'ri_row':'ic_1', 'ri_col':'ic_2'})
 
         return summary_data
@@ -491,6 +490,15 @@ def load_drug_features():
         # np.save('./data/Drugs/drug_feature_graph.npy', drug_dict)
         return smilesgraph_dict
         
+
+   # ----------------For transynergy------------------------------- 
+    def process_smilesGrover():
+        with open(os.path.join(ROOT_DIR, 'data', 'drug_data', 'smiles.grover'),'rb') as f:
+            smiles_dict = pickle.load(f)
+        return smiles_dict
+
+
+
     save_path = os.path.join(ROOT_DIR, 'data', 'drug_data')
     save_path = os.path.join(save_path, 'input_drug_data.npy')
     if not os.path.exists(save_path):
@@ -505,13 +513,15 @@ def load_drug_features():
         data_dicts['smiles2graph_TGSynergy'] = process_smiles2graph_TGSynergy()
         #data_dicts['dpi_network'] = process_dpi_network()
         data_dicts['hetero_graph'] = process_hetero_network()
+        data_dicts['smiles_grover'] = process_smilesGrover()
         np.save(save_path, data_dicts)
     else:
         data_dicts = np.load(save_path,allow_pickle=True).item()
+        data_dicts['smiles_grover'] = process_smilesGrover()
         # data_dicts['drug_target_rwr'] = process_dpi_RWR()
         # data_dicts['drug_target_rwr'].columns = data_dicts['drug_target_rwr'].columns.values.astype(int)
 
-        data_dicts['drug_target'] = process_dpi()
+        # data_dicts['drug_target'] = process_dpi()
 
         # selected_genes = data_dicts['drug_target_rwr'].index
         # a = process_dpi()

@@ -49,7 +49,7 @@ def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, m
     
     def filter_by_706_genes():
         # following is copied from prepare_data
-        exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data', 'CCLE','exp.csv'), index_col=0)
+        exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data', 'CCLE','CCLE_exp.csv'), index_col=0)
         gene_list = exp.columns.to_list()
         gene_list = [int(gene[1:-1]) for gene in gene_list]
 
@@ -59,8 +59,22 @@ def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, m
         selected_genes = list(set(gene_list) & set(ppi_data_genes))
         return selected_genes
 
+    def ALL():
+        if len(cell_omics) > 1:
+            # if mut/cnv/exp, use exp
+            temp = cellFeature_dicts['exp']
+        else:
+            temp = cellFeature_dicts[cell_omics[0]]
+        var_df = temp.var(axis=1)
+        selected_genes = list(var_df.sort_values(ascending=False).iloc[:1000].index)
+        data_dicts = np.load(os.path.join(ROOT_DIR, 'data', 'drug_data','input_drug_data.npy'),allow_pickle=True).item()
+        drug_target = list(data_dicts['drug_target_rwr'].index)
+
+        return list(set(selected_genes+drug_target))
+
     # select genes based on criterion (variance or STRING)
-    function_mapping = {'variance':'filter_by_variance', 'STRING':'filter_by_706_genes', 'dti':'filter_by_2000_genes'}
+    function_mapping = {'variance':'filter_by_variance', 'STRING':'filter_by_706_genes', 'dti':'filter_by_2000_genes',\
+        'all':'ALL'}
     selected_genes = locals()[function_mapping[cell_filtered_by]]()
 
 

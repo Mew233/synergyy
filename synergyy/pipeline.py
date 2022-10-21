@@ -126,7 +126,7 @@ def prepare_data(args):
     drug_mat_dict = {}
     for feat_type in config['drug_omics']:
 ### 需要修改, append到一个list
-        if feat_type=='smiles2graph' or feat_type=='smiles2graph_TGSynergy' or feat_type=='smiles':
+        if feat_type in ['smiles2graph','smiles2graph_TGSynergy','smiles','smiles_grover']:
             temp_X_drug1, temp_X_drug2 = [], []
             for i in tqdm(range(synergy_df.shape[0])):
                 row = synergy_df.iloc[i]
@@ -367,9 +367,9 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
         X_sm1_graph, X_sm2_graph = [], []
         
         for index, (d1, d2, cell, fp1, fp2, sm1, sm2, sm1g,sm2g) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell,\
-            X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], \
+            X_drug['smiles_grover_1'],X_drug['smiles_grover_2'], \
                 X_drug['smiles_1'],X_drug['smiles_2'], X_drug['smiles2graph_TGSynergy_1'],X_drug['smiles2graph_TGSynergy_2'])):
-            array_tuple = (d1, d2, cell)
+            array_tuple = (d1, d2)
             array = np.vstack(array_tuple)
             t = torch.from_numpy(array).float()
 
@@ -383,7 +383,7 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
             ##
             padded_sm1 = np.pad(sm1, pad_width=(0, 244-len(sm1)), mode='constant', constant_values=0)
             padded_sm2 = np.pad(sm2, pad_width=(0, 244-len(sm2)), mode='constant', constant_values=0)
-            X_sm1.append(torch.from_numpy(np.array(padded_sm1)).float())
+            X_sm1.append(torch.from_numpy(np.array(cell)).float())
             X_sm2.append(torch.from_numpy(np.array(padded_sm2)).float())
 
         #len(max(smiles_list, key = len)) is 244
