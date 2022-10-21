@@ -25,10 +25,11 @@ def arg_parse():
     parser.add_argument('--fine_tuning', type=str, default=False,
                         help='fine tuning for corrected batch of CCLE before external validation')
     parser.add_argument('--SHAP_analysis', type=bool, default=False)
-    parser.add_argument('--model', type=str, default='combonet',
-                        help='import model (default: transynergy_liu)')
+    parser.add_argument('--model', type=str, default='transynergy_liu',
+                        help='import model (default: deepsynergy_preuer)')
                         #options are 'LR','XGBOOST','RF','ERT','deepsynergy_preuer','multitaskdnn_kim',
-                        # 'matchmaker_brahim','deepdds_wang','TGSynergy','transynergy_liu', 'hetergnn',"combonet")
+                        # 'matchmaker_brahim','deepdds_wang','TGSynergy','transynergy_liu', 'hetergnn',"combonet",
+                        # 'precily_chawla')
 
 # --------------- Parse configuration  --------------- #
 
@@ -36,17 +37,17 @@ def arg_parse():
                         help = 'DrugComb or Sanger2022 or Customized')
     parser.add_argument('--external_validation', type=bool, default=False,
                         required=False, help = 'True for Sanger2022 or customized')
-    parser.add_argument('--drug_omics', nargs="+", default=["drug_target_rwr"],
+    parser.add_argument('--drug_omics', nargs="+", default=["drug_target_rwr", "smiles.grover", "drug_GSVA", "smiles2graph_TGSynergy"],
                         required=False, help='drug_target/drug_target_rwr/morgan_fingerprint\
                             /smiles2graph/smiles2graph_TGSynergy/chemical_descriptor/smiles\
-                            hetero_graph/'    )    
+                            hetero_graph/smiles.vec(100)/ smiles.grover(3285)/drug_GSVA'    )    
     parser.add_argument('--cell_df', type=str, default='CCLE',
                         help='"CCLE","Customized"')
-    parser.add_argument('--cell_omics', nargs="+", default=['exp'],
-                        required=False, help='"exp","cn","mut","GNN_cell')
+    parser.add_argument('--cell_omics', nargs="+", default=['exp','GSVA_scores'],
+                        required=False, help='"exp","cn","mut","GNN_cell","GSVA_scores"')
     parser.add_argument('--cell_filtered_by', type=str, default='dti',
                         required=False,help='top genes selected by variance or STRING graph or dti(for Transynergy)')
-    parser.add_argument('--get_cellfeature_concated', type=bool, default=True,
+    parser.add_argument('--get_cellfeature_concated', type=bool, default=False,
                         required=False)
     parser.add_argument('--get_drugfeature_concated', type=bool, default=False,
                         required=False, help='if concat, numpy array')

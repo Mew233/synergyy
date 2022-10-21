@@ -1,0 +1,1 @@
+{"precily_chawla": {"synergy_df": "DrugComb", "drug_omics": ["smiles.vec"], "cell_df": "CCLE", "cell_omics": ["GSVA_scores"], "cell_filtered_by": "variance", "model_name": "precily_chawla", "get_cellfeature_concated": true, "get_drugfeature_concated": true, "get_drugs_summed": true}}

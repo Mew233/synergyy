@@ -565,6 +565,32 @@ class Mapping():
             self.idx2item.append(item)
             self.item2idx[item]=len(self.idx2item)-1
 
+#https://github.com/KristinaPreuer/DeepSynergy/blob/master/normalize.ipynb
+def normalize(X, means1=None, std1=None, means2=None, std2=None, feat_filt=None, norm='tanh_norm'):
+    if std1 is None:
+        std1 = np.nanstd(X, axis=0)
+    if feat_filt is None:
+        feat_filt = std1!=0
+
+    # X = X[:,feat_filt]
+    X = np.ascontiguousarray(X)
+    if means1 is None:
+        means1 = np.mean(X, axis=0)
+    X = (X-means1)/std1
+    if norm == 'norm':
+        return(X, means1, std1, feat_filt)
+    elif norm == 'tanh':
+        return(np.tanh(X), means1, std1, feat_filt)
+    elif norm == 'tanh_norm':
+        X = np.tanh(X)
+        if means2 is None:
+            means2 = np.mean(X, axis=0)
+        if std2 is None:
+            std2 = np.std(X, axis=0)
+        X = (X-means2)/std2
+        X[:,std2==0]=0
+        return(X, means1, std1, means2, std2, feat_filt)  
+
 if __name__ == "__main__":
     # configuration_from_json()
     test = smile_to_graph('CC[C@H](C)[C@H](NC(=O)[C@H](CCC(O)=O)NC(=O)[C@H](CCC(O)=O)NC(=O)[C@H](CC1=CC=CC=C1)NC(=O)[C@H](CC(O)=O)NC(=O)CNC(=O)[C@H](CC(N)=O)NC(=O)CNC(=O)CNC(=O)CNC(=O)CNC(=O)[C@@H]1CCCN1C(=O)[C@H](CCCNC(N)=N)NC(=O)[C@@H]1CCCN1C(=O)[C@H](N)CC1=CC=CC=C1)C(=O)N1CCC[C@H]1C(=O)N[C@@H](CCC(O)=O)C(=O)N[C@@H](CCC(O)=O)C(=O)N[C@@H](CC1=CC=C(O)C=C1)C(=O)N[C@@H](CC(C)C)C(O)=O')

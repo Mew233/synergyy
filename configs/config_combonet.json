@@ -1,1 +1,1 @@
-{"combonet": {"synergy_df": "DrugComb", "drug_omics": ["drug_target_rwr"], "cell_df": "CCLE", "cell_omics": ["exp"], "cell_filtered_by": "dti", "model_name": "combonet", "get_cellfeature_concated": true, "get_drugfeature_concated": false, "get_drugs_summed": false}}
+{"combonet": {"synergy_df": "DrugComb", "drug_omics": ["smiles.grover"], "cell_df": "CCLE", "cell_omics": ["GSVA_scores"], "cell_filtered_by": "dti", "model_name": "combonet", "get_cellfeature_concated": true, "get_drugfeature_concated": false, "get_drugs_summed": false}}

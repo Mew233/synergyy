@@ -19,7 +19,7 @@ import random
 import pandas as pd
 import shap as sp
 from tqdm import tqdm
-import paddle.fluid.layers as fl
+
 torch.manual_seed(42)
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -148,7 +148,7 @@ def k_fold_trainer(dataset,model,args):
                 # Zero the gradients
                 optimizer.zero_grad()
                 # forward + backward + optimize
-                if args.model == 'deepsynergy_preuer':
+                if args.model == 'deepsynergy_preuer' or args.model == 'precily_chawla':
                     outputs = network(inputs[0])
                 elif args.model == 'matchmaker_brahim':
                     outputs = network(inputs[0],inputs[1],inputs[2])
@@ -186,7 +186,7 @@ def k_fold_trainer(dataset,model,args):
                 inputs, labels = data[:-2], data[-2]
                 data_index = data[-1]
 
-                if args.model == 'deepsynergy_preuer':
+                if args.model == 'deepsynergy_preuer' or args.model == 'precily_chawla':
                     outputs = network(inputs[0])
                 elif args.model == 'matchmaker_brahim':
                     outputs = network(inputs[0],inputs[1],inputs[2])
@@ -999,7 +999,7 @@ def k_fold_trainer_graph_combonet(temp_loader_trainval,model,args):
                             (i + 1, current_loss / 100))
                         current_loss = 0.0
             training(False, trainloader)
-            training(True, trainloader)
+            # training(True, trainloader)
 
             # Process is complete.
             # print('Training process has finished.')
@@ -1343,7 +1343,7 @@ def evaluator(model,model_weights,train_val_dataset,test_loader, args):
         # get the inputs; data is a list of [inputs, labels]
         inputs, labels = data[:-2], data[-2]
         index = data[-1]
-        if args.model == 'deepsynergy_preuer':
+        if args.model == 'deepsynergy_preuer' or args.model == 'precily_chawla':
             y_pred = model(inputs[0])
         elif args.model == 'matchmaker_brahim':
             y_pred = model(inputs[0],inputs[1],inputs[2])
@@ -1562,11 +1562,12 @@ def evaluator_graph_combonet(model,model_weights,train_val_dataset, temp_loader_
     test_dataset_target = temp_loader_test[1].tolist()
     test_dataset_index = temp_loader_test[2].tolist()
     test_dataset2 = temp_loader_test[3]
+    test_dataset3 = temp_loader_test[4]
 
-    train_val_dataset_ic1 = temp_loader_test[4].tolist()
-    train_val_dataset_ic2 = temp_loader_test[5].tolist()
+    train_val_dataset_ic1 = temp_loader_test[5].tolist()
+    train_val_dataset_ic2 = temp_loader_test[6].tolist()
 
-    test_df = [test_dataset, test_dataset_target, test_dataset_index,test_dataset2,\
+    test_df = [test_dataset, test_dataset_target, test_dataset_index,test_dataset2,test_dataset3,\
         train_val_dataset_ic1,train_val_dataset_ic2]
     test_df = pd.DataFrame(test_df).T
 
@@ -1579,15 +1580,19 @@ def evaluator_graph_combonet(model,model_weights,train_val_dataset, temp_loader_
     predictions, actuals = list(), list()
 
     for i, data in enumerate(test_loader):
-        
+
         data1 = data[0]
         data_target = data[1]
         data_index = data[2]
         data2 = data[3]
+        data3 = data[4]
+
+        ic1 = data[5]
+        ic2 = data[6]
 
         # model.load_state_dict(torch.load(model_weights))
 
-        y_pred, score1, score2 = model(data1,data2)
+        y_pred, score1, score2 = model(data1,data2,data3)
         y_pred = y_pred.detach().numpy()
 
         # actual output

@@ -36,17 +36,32 @@ class Combonet(nn.Module):
         #self.decoder = Decoder(d_input, d_model, N, heads, dropout)
 
         input_length = d_model*n_feature_type
-        self.out = OutputFeedForward(input_length, n_feature_type, d_layers=[512, 1])
+        self.out = OutputFeedForward(input_length, n_feature_type, d_layers=[64, 1])
 
-        self.dose_response = nn.Sequential(
-            nn.BatchNorm1d(1024),
-            nn.Dropout(p=0.5),
-            nn.Linear(1024, 512),
+        self.dim_reduction = nn.Sequential(
+            nn.Linear(1322, 512),
             nn.ReLU(),
-            nn.Dropout(p=0.5),
-            nn.Linear(512, 1),
-            nn.Sigmoid()
+            nn.Dropout(p=0.2),
+            nn.Linear(512, 100),
         )
+        self.dim_reduction2 = nn.Sequential(
+            nn.Linear(3285, 512),
+            nn.ReLU(),
+            nn.Dropout(p=0.2),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Dropout(p=0.2),
+            nn.Linear(512, 100),
+        )
+
+        # self.dose_response = nn.Sequential(
+        #     nn.Linear(200, 64),
+        #     nn.ReLU(),
+        #     nn.Dropout(p=0.2),
+        #     nn.Linear(64, 1),
+        #     nn.Sigmoid()
+        # )
+
 
     def forward(self, src, src2, src3,src_mask=None):
         
@@ -61,19 +76,23 @@ class Combonet(nn.Module):
         # score2 = self.cell(flat_e_output2)
 
         #single-layer neural network
-        input = self.reduction(src3)
+
+        cell = self.dim_reduction(src3)
+        src = self.dim_reduction2(src)
+        src2 = self.dim_reduction2(src2)
+        input = torch.stack((src, src2, cell), dim=1).squeeze()
         e_outputs3 = self.encoder(input, src_mask)
         flat_e_output3 = e_outputs3.view(-1, e_outputs3.size(-2)*e_outputs3.size(-1))
 
-        e_outputs = e_outputs3[:,0:2,:]
-        e_outputs2 = e_outputs3[:,1:,:]
-        flat_e_output = e_outputs.view(-1, e_outputs.size(-2)*e_outputs.size(-1))
-        flat_e_output2 = e_outputs2.view(-1, e_outputs2.size(-2)*e_outputs2.size(-1))
+        # e_outputs = e_outputs3[:,0:2,:]
+        # e_outputs2 = e_outputs3[:,1:,:]
+        # flat_e_output = e_outputs.view(-1, e_outputs.size(-2)*e_outputs.size(-1))
+        # flat_e_output2 = e_outputs2.view(-1, e_outputs2.size(-2)*e_outputs2.size(-1))
 
-        score1 = self.dose_response(flat_e_output)
-        score2 = self.dose_response(flat_e_output2)
+        # score1 = self.dose_response(flat_e_output)
+        # score2 = self.dose_response(flat_e_output2)
 
-        #score1, score2 = None, None
+        score1, score2 = None, None
         x_3 = self.out(flat_e_output3)
 
         return x_3, score1, score2

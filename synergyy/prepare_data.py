@@ -10,7 +10,7 @@ from rdkit.Chem import Descriptors
 from rdkit.Chem.EState import Fingerprinter
 
 from utilitis import *
-import pgl
+import pickle
 
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -29,11 +29,11 @@ def load_synergy(dataset,args):
     def process_drugcomb():
         data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','DrugComb','drugcomb_trueset_NoDup.csv'))
         data = data[['drug_row', 'drug_col','cell_line_name','study_name','tissue_name',\
-          'synergy_zip','synergy_loewe','synergy_hsa','synergy_bliss','DepMap_ID_x','RRID_x',\
+          'synergy_zip','synergy_loewe','synergy_hsa','synergy_bliss','DepMap_ID','RRID',\
           'pubchemID_x','compound0_x','pubchemID_y','compound0_y',\
             'ri_row', 'ri_col']]
 
-        data_trim = data[['compound0_x','compound0_y','DepMap_ID_x','tissue_name','synergy_loewe',\
+        data_trim = data[['compound0_x','compound0_y','DepMap_ID','tissue_name','synergy_loewe',\
             'ri_row', 'ri_col']]
 
         ## clean the scores
@@ -52,8 +52,8 @@ def load_synergy(dataset,args):
         # # some experiments may fail and get NA values, drop these experiments
         summary_data = data_trim.dropna()
 
-        summary_data = summary_data[['compound0_x','compound0_y','DepMap_ID_x','tissue_name','synergy_loewe','ri_row', 'ri_col']].rename(columns={\
-            'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID_x':'cell','synergy_loewe':'score',\
+        summary_data = summary_data[['compound0_x','compound0_y','DepMap_ID','tissue_name','synergy_loewe','ri_row', 'ri_col']].rename(columns={\
+            'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID':'cell','synergy_loewe':'score',\
                 'ri_row':'ic_1', 'ri_col':'ic_2'})
 
         return summary_data
@@ -141,11 +141,17 @@ def load_cellline_features(dataset,args):
    
             # use entrez gene id as index
             if postfix != "mut": 
-                df.columns = ['Entrez gene id']+[split_it_cell(_) for _ in list(df.columns)[1:]]
-                df_transpose = df.T
-                # set first row as column
-                df_transpose.columns = df_transpose.iloc[0]
-                processed_data = df_transpose.drop(df_transpose.index[0])
+                if postfix == "GSVA_scores":
+                    # X_tr, means1, std1, means2, std2, feat_filt = normalize(df, norm='tanh_norm')
+                    # X_tr = pd.DataFrame(X_tr,columns=df.columns,index=df.index)
+                    processed_data = df
+
+                else:
+                    df.columns = ['Entrez gene id']+[split_it_cell(_) for _ in list(df.columns)[1:]]
+                    df_transpose = df.T
+                    # set first row as column
+                    df_transpose.columns = df_transpose.iloc[0]
+                    processed_data = df_transpose.drop(df_transpose.index[0])
 
             else:
                 ## same as exp
@@ -168,8 +174,8 @@ def load_cellline_features(dataset,args):
             cell_dict = np.load(gnn_path,allow_pickle=True).item()
             data_dicts['GNN_cell'] = cell_dict
 
-            # # load cpi_network
-            # data_dicts['cpi_network'] = load_cpi_network()
+            # # load GSVA
+            data_dicts["GSVA_scores"] = load_file("GSVA_scores")
 
             np.save(save_path, data_dicts)
         else:
@@ -180,8 +186,8 @@ def load_cellline_features(dataset,args):
             cell_dict = np.load(gnn_path,allow_pickle=True).item()
             data_dicts['GNN_cell'] = cell_dict
 
-            # # load cpi_network
-            # data_dicts['cpi_network'] = load_cpi_network()
+            # # load GSVA
+            data_dicts["GSVA_scores"] = load_file("GSVA_scores")
             
         edge_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE')
         edge_path = os.path.join(edge_path, 'edge_index_PPI_0.95.npy')
@@ -254,16 +260,20 @@ def load_drug_features():
         # Chemical descriptors
         def get_fps(mol):
             calc=MoleculeDescriptors.MolecularDescriptorCalculator([x[0] for x in Descriptors._descList])
+            smiles = mol.GetProp('SMILES')
+            mol = Chem.MolFromSmiles(smiles)
             ds = np.asarray(calc.CalcDescriptors(mol))
-            arr=Fingerprinter.FingerprintMol(mol)[0]
-            return np.append(arr,ds)
+            # arr=Fingerprinter.FingerprintMol(mol)[0]
+            return ds
         
         
         fingerprints = dict()
         for mol in molecules:
             drugbank_id = mol.GetProp('DATABASE_ID')
-            fingerprints[split_it(drugbank_id)] = get_fps(mol)
-
+            try:
+                fingerprints[split_it(drugbank_id)] = get_fps(mol)
+            except AttributeError:
+                pass
         fingerprints = pd.DataFrame(fingerprints)
         fingerprints.columns = fingerprints.columns.astype(int)
         return fingerprints
@@ -490,7 +500,35 @@ def load_drug_features():
                 pass
         # np.save('./data/Drugs/drug_feature_graph.npy', drug_dict)
         return smilesgraph_dict
+
+    #----------------For Precily------------------------------- 
+    def process_smilesVec():
+        with open(os.path.join(ROOT_DIR, 'data', 'drug_data','smiles.vec'), 'rb') as f:
+            vecs= pickle.load(f, encoding='bytes')
+
+        smiles_dict = dict()
+
+        i = 0 
+        for mol in molecules:
+            drugbank_id = mol.GetProp('DATABASE_ID')
+            smiles_dict[split_it(drugbank_id)] = vecs[i]
+            i += 1
+
+        return smiles_dict
+
+    def process_smilesGrover():
+        with open(os.path.join(ROOT_DIR, 'data', 'drug_data','smiles.grover'), 'rb') as f:
+            smiles_dict= pickle.load(f)
+
+        return smiles_dict
+
+    def process_drugGSVA():
         
+        df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','drug_GSVA_scores.csv'),sep=',')
+        df.columns = df.columns.astype(int)
+
+        return df
+
     save_path = os.path.join(ROOT_DIR, 'data', 'drug_data')
     save_path = os.path.join(save_path, 'input_drug_data.npy')
     if not os.path.exists(save_path):
@@ -505,13 +543,20 @@ def load_drug_features():
         data_dicts['smiles2graph_TGSynergy'] = process_smiles2graph_TGSynergy()
         #data_dicts['dpi_network'] = process_dpi_network()
         data_dicts['hetero_graph'] = process_hetero_network()
+        data_dicts['smiles.vec'] = process_smilesVec()
+        data_dicts['smiles.grover'] = process_smilesGrover()
+        data_dicts['drug_GSVA'] = process_drugGSVA()
         np.save(save_path, data_dicts)
     else:
         data_dicts = np.load(save_path,allow_pickle=True).item()
+        data_dicts['smiles.vec'] = process_smilesVec()
+        data_dicts['smiles.grover'] = process_smilesGrover()
+        data_dicts['drug_GSVA'] = process_drugGSVA()
+        # data_dicts['chemical_descriptor'] = process_ChemicalDescrpitor()
         # data_dicts['drug_target_rwr'] = process_dpi_RWR()
         # data_dicts['drug_target_rwr'].columns = data_dicts['drug_target_rwr'].columns.values.astype(int)
 
-        data_dicts['drug_target'] = process_dpi()
+        # data_dicts['drug_target'] = process_dpi()
 
         # selected_genes = data_dicts['drug_target_rwr'].index
         # a = process_dpi()

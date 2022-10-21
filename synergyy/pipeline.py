@@ -1,9 +1,6 @@
 """
     A collection of full training and evaluation pipelines.
 """
-from curses.ascii import DC2
-from logging import raiseExceptions
-from stringprep import in_table_a1
 import numpy as np 
 import pandas as pd
 import torch
@@ -57,7 +54,11 @@ def prepare_data(args):
         save_path = os.path.join(ROOT_DIR, 'results','selected_genes.txt')
         np.savetxt(save_path, np.array(selected_genes).astype(int), delimiter=',')
 
-    elif args.cell_omics[0] == 'GNN_cell':
+        # GSVA不需要filter genes.但事实tabular format
+        if "GSVA_scores" in args.cell_omics:
+            cell_feats['GSVA_scores'] = cellFeatures_dicts['GSVA_scores']
+
+    elif args.cell_omics[0] in ["GNN_cell"]:
         #这里load了更多的cell
         # cell_feats, selected_cells = cellFeatures_dicts, get_GNNCell()
         #为了与其他模型保持一致, 这里选择的cell只有1000个基因map到的
@@ -126,7 +127,8 @@ def prepare_data(args):
     drug_mat_dict = {}
     for feat_type in config['drug_omics']:
 ### 需要修改, append到一个list
-        if feat_type=='smiles2graph' or feat_type=='smiles2graph_TGSynergy' or feat_type=='smiles':
+        if feat_type in ["smiles2graph","smiles2graph_TGSynergy","smiles","smiles.vec","smiles.grover"]:
+            #=='smiles2graph' or feat_type=='smiles2graph_TGSynergy' or feat_type=='smiles':
             temp_X_drug1, temp_X_drug2 = [], []
             for i in tqdm(range(synergy_df.shape[0])):
                 row = synergy_df.iloc[i]
@@ -163,7 +165,8 @@ def prepare_data(args):
     X_drug_temp = {}
     if config['get_drugs_summed'] == True:
         for feat_type in config['drug_omics']:
-            temp_X = drug_mat_dict[feat_type+"_1"] + drug_mat_dict[feat_type+"_2"]
+            # temp_X = drug_mat_dict[feat_type+"_1"] + drug_mat_dict[feat_type+"_2"]
+            temp_X = np.concatenate(list(drug_mat_dict.values()), axis=1)
             X_drug_temp[feat_type] = temp_X
     else:
         X_drug_temp = drug_mat_dict
@@ -297,7 +300,7 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
             net_weights = k_fold_trainer(train_val_dataset,model,args)
    
 # --------------- deep synergy --------------- #
-    elif args.model == 'deepsynergy_preuer':
+    elif args.model == 'deepsynergy_preuer' or args.model == 'precily_chawla':
         
         X = np.concatenate([X_cell,X_drug], axis=1)
         #X_{}_trainval, X_{}_test, Y_{}_trainval, Y_{}_test, dummy_train, dummy_test(为了shap analysis)
@@ -327,11 +330,13 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
 # --------------- combonet --------------- #
     elif args.model == 'combonet':
         X, X2, X3 = [],[],[]
-        for index, (d1, d2, cell) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell)):
-            t = torch.from_numpy(np.vstack((d1,cell))).float()
-            # t = torch.from_numpy(np.expand_dims(d1, axis=0)).float()
-            t2 = torch.from_numpy(np.vstack((d2,cell))).float()
-            t3 = torch.from_numpy(np.vstack((d1,d2,cell))).float()
+        for index, (d1, d2, cell) in enumerate(zip(X_drug['smiles.grover_1'], X_drug['smiles.grover_2'], X_cell)):
+            # t = torch.from_numpy(np.vstack((d1,cell))).float()
+            t = torch.from_numpy(np.expand_dims(d1, axis=0)).float()
+            # t2 = torch.from_numpy(np.vstack((d2,cell))).float()
+            # t3 = torch.from_numpy(np.vstack((d1,d2,cell))).float()
+            t2 = torch.from_numpy(np.expand_dims(d2, axis=0)).float()
+            t3 = torch.from_numpy(np.expand_dims(cell, axis=0)).float()
             X.append(t.float())
             X2.append(t2.float())
             X3.append(t3.float())
@@ -366,9 +371,9 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
         X_sm1, X_sm2 = [], []
         X_sm1_graph, X_sm2_graph = [], []
         
-        for index, (d1, d2, cell, fp1, fp2, sm1, sm2, sm1g,sm2g) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell,\
-            X_drug['morgan_fingerprint_1'],X_drug['morgan_fingerprint_2'], \
-                X_drug['smiles_1'],X_drug['smiles_2'], X_drug['smiles2graph_TGSynergy_1'],X_drug['smiles2graph_TGSynergy_2'])):
+        for index, (d1, d2, cell, fp1, fp2, sm1, sm2, sm1g,sm2g) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell['exp'],\
+            X_drug['smiles.grover_1'],X_drug['smiles.grover_2'], \
+                X_drug['drug_GSVA_1'],X_drug['drug_GSVA_2'], X_cell['GSVA_scores'],X_drug['smiles2graph_TGSynergy_2'])):
             array_tuple = (d1, d2, cell)
             array = np.vstack(array_tuple)
             t = torch.from_numpy(array).float()
@@ -377,15 +382,16 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
             X.append(t.float())
             X2.append(t2.float())
 
-            X_sm1_graph.append(sm1g)
+            X_sm1_graph.append(torch.from_numpy(np.array(sm1g)).float())
             X_sm2_graph.append(sm2g)
 
             ##
-            padded_sm1 = np.pad(sm1, pad_width=(0, 244-len(sm1)), mode='constant', constant_values=0)
-            padded_sm2 = np.pad(sm2, pad_width=(0, 244-len(sm2)), mode='constant', constant_values=0)
-            X_sm1.append(torch.from_numpy(np.array(padded_sm1)).float())
-            X_sm2.append(torch.from_numpy(np.array(padded_sm2)).float())
-
+            # padded_sm1 = np.pad(sm1, pad_width=(0, 244-len(sm1)), mode='constant', constant_values=0)
+            # padded_sm2 = np.pad(sm2, pad_width=(0, 244-len(sm2)), mode='constant', constant_values=0)
+            # X_sm1.append(torch.from_numpy(np.array(padded_sm1)).float())
+            # X_sm2.append(torch.from_numpy(np.array(padded_sm2)).float())
+            X_sm1.append(torch.from_numpy(np.vstack((sm1, sm2, sm1g))).float())
+            X_sm2.append(torch.from_numpy(np.array(sm2)).float())
         #len(max(smiles_list, key = len)) is 244
 
         X_trainval, X_test, Y_trainval, Y_test, dummy_trainval, dummy_test, X2_trainval, X2_test,  \
