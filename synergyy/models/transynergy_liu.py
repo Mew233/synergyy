@@ -103,7 +103,7 @@ class AE(nn.Module):
 class Transynergy_Liu(nn.Module):
     def __init__(self, d_input, d_model, n_feature_type, N, heads, dropout):
         super().__init__()
-        self.ae = AE(4152,d_model)
+        self.ae = AE(4298,d_model)
         self.reduction = nn.Linear(d_input, d_model, bias=True)
         self.reduction2 = nn.Linear(3285, d_model, bias=True)
 
@@ -115,7 +115,7 @@ class Transynergy_Liu(nn.Module):
         self.out = OutputFeedForward(input_length, n_feature_type, d_layers=[64, 32, 1])
 
 
-    def forward(self, src, fp=None, sm1=None, sm2=None, sm1g=None, sm2g=None, \
+    def forward(self, src, fp=None, sm1=None, sm2=None, \
         trg=None, src_mask=None, trg_mask=None):
         
 

@@ -522,8 +522,8 @@ def load_drug_features():
         np.save(save_path, data_dicts)
     else:
         data_dicts = np.load(save_path,allow_pickle=True).item()
-        data_dicts['smiles_grover'] = process_smilesGrover()
-        data_dicts['drug_target'] = process_dpi()
+        # data_dicts['smiles_grover'] = process_smilesGrover()
+        # data_dicts['drug_target'] = process_dpi()
         # data_dicts['drug_target_rwr'] = process_dpi_RWR()
         # data_dicts['drug_target_rwr'].columns = data_dicts['drug_target_rwr'].columns.values.astype(int)
 
@@ -535,7 +535,7 @@ def load_drug_features():
         ##hetergnn, 如果已保存data_dicts, 没有必要重新跑下面这两个
         # data_dicts['hetero_graph'] = process_hetero_network()
         
-        np.save(save_path, data_dicts)
+        # np.save(save_path, data_dicts)
 
     return data_dicts
 

@@ -364,11 +364,10 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
         X=[]
         X2=[] #additional features
         X_sm1, X_sm2 = [], []
-        X_sm1_graph, X_sm2_graph = [], []
         
-        for index, (d1, d2, cell, fp1, fp2, sm1, sm2, sm1g,sm2g) in enumerate(zip(X_drug['drug_target_1'], X_drug['drug_target_2'], X_cell,\
+        for index, (d1, d2, cell, fp1, fp2, sm1, sm2) in enumerate(zip(X_drug['drug_target_1'], X_drug['drug_target_2'], X_cell,\
             X_drug['smiles_grover_1'],X_drug['smiles_grover_2'], \
-                X_drug['smiles_1'],X_drug['smiles_2'], X_drug['smiles2graph_TGSynergy_1'],X_drug['smiles2graph_TGSynergy_2'])):
+                X_drug['smiles_1'],X_drug['smiles_2'])):
             array_tuple = (d1, d2)
             array = np.vstack(array_tuple)
             t = torch.from_numpy(array).float()
@@ -376,9 +375,6 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
             t2 = torch.from_numpy(np.vstack((fp1,fp2))).float()
             X.append(t.float())
             X2.append(t2.float())
-
-            X_sm1_graph.append(sm1g)
-            X_sm2_graph.append(sm2g)
 
             ##
             # padded_sm1 = np.pad(sm1, pad_width=(0, 244-len(sm1)), mode='constant', constant_values=0)
@@ -390,8 +386,7 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
 
         X_trainval, X_test, Y_trainval, Y_test, dummy_trainval, dummy_test, X2_trainval, X2_test,  \
             X_sm1_trainval, X_sm1_test, X_sm2_trainval, X_sm2_test,\
-                X_sm1_g_trainval, X_sm1_g_test, X_sm2_g_trainval, X_sm2_g_test,\
-            = train_test_split(X, Y, dummy, X2, X_sm1, X_sm2, X_sm1_graph, X_sm2_graph, test_size=test_size, random_state=42)
+            = train_test_split(X, Y, dummy, X2, X_sm1, X_sm2, test_size=test_size, random_state=42)
 
         save_path = os.path.join(ROOT_DIR, 'results','test_idx.txt')
         np.savetxt(save_path,dummy_test.astype(int), delimiter=',')
@@ -409,8 +404,7 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
         train_val_dataset, test_loader = dataloader_graph(X_trainval=X_trainval, X_test=X_test,\
             Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval = dummy_trainval, dummy_test=dummy_test, \
                  X2_trainval=X2_trainval, X2_test=X2_test,\
-                    X_sm1_trainval=X_sm1_trainval, X_sm1_test=X_sm1_test, X_sm2_trainval=X_sm2_trainval, X_sm2_test=X_sm2_test,\
-                        X_sm1_g_trainval=X_sm1_g_trainval, X_sm1_g_test=X_sm1_g_test, X_sm2_g_trainval=X_sm2_g_trainval, X_sm2_g_test=X_sm2_g_test)
+                    X_sm1_trainval=X_sm1_trainval, X_sm1_test=X_sm1_test, X_sm2_trainval=X_sm2_trainval, X_sm2_test=X_sm2_test)
 
         # load the best model
         if args.train_test_mode == 'test':

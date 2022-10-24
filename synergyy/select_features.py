@@ -79,7 +79,7 @@ def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, m
         var_df = processed_data.var(axis=1)
         selected_genes = list(var_df.sort_values(ascending=False).iloc[:1000].index)
         data_dicts = np.load(os.path.join(ROOT_DIR, 'data', 'drug_data','input_drug_data.npy'),allow_pickle=True).item()
-        drug_target = list(data_dicts['drug_target_rwr'].index)
+        drug_target = list(data_dicts['drug_target'].index)
 
         return list(set(selected_genes+drug_target))
 
