@@ -23,11 +23,11 @@ def get_model(model_name,*args):
     
     if model_name is "transynergy_liu":
         #2750 is CCLE. 2675 is when customized CRC data included; 2354 is tgca; #3277 with tdc
-        return Transynergy_Liu(d_input=3277, d_model=256, n_feature_type=3, N=1, heads=8, dropout=0.2)
+        return Transynergy_Liu(d_input=3645, d_model=256, n_feature_type=3, N=1, heads=8, dropout=0.2)
         #return Transynergy_Liu(setting.d_input, setting.d_model, setting.n_feature_type, setting.n_layers, setting.attention_heads, setting.attention_dropout)
     if model_name is "combonet":
         #2750 is CCLE. 2675 is when customized CRC data included; 2354 is tgca
-        return Combonet(d_input=3277, d_model=512, n_feature_type=3, N=2, heads=8, dropout=0.2)
+        return Combonet(d_input=3645, d_model=512, n_feature_type=3, N=2, heads=8, dropout=0.2)
     
     if model_name is "multitaskdnn_kim":
 

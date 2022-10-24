@@ -271,8 +271,13 @@ def load_drug_features():
 
     def process_dpi():
         # load drug target dataset
-        targets = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all.csv'))
-        drug_targets = explode_dpi(targets)
+        targets = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_targets.csv'))
+        enzymes = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_enzyme.csv'))
+        carrier = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_carrier.csv'))
+        transporter = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_transporter.csv'))
+        all = pd.concat([targets,enzymes,carrier,transporter])
+        drug_targets = explode_dpi(all)
+
         dtc = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','dtc_db2ncbi.csv'))
         drug_targets_L = pd.concat([drug_targets,dtc])
         drug_targets_L = drug_targets_L.drop_duplicates(subset=['Drug IDs','NCBI_ID'])
@@ -518,10 +523,9 @@ def load_drug_features():
     else:
         data_dicts = np.load(save_path,allow_pickle=True).item()
         data_dicts['smiles_grover'] = process_smilesGrover()
+        data_dicts['drug_target'] = process_dpi()
         # data_dicts['drug_target_rwr'] = process_dpi_RWR()
         # data_dicts['drug_target_rwr'].columns = data_dicts['drug_target_rwr'].columns.values.astype(int)
-
-        # data_dicts['drug_target'] = process_dpi()
 
         # selected_genes = data_dicts['drug_target_rwr'].index
         # a = process_dpi()
@@ -531,7 +535,7 @@ def load_drug_features():
         ##hetergnn, 如果已保存data_dicts, 没有必要重新跑下面这两个
         # data_dicts['hetero_graph'] = process_hetero_network()
         
-        # np.save(save_path, data_dicts)
+        np.save(save_path, data_dicts)
 
     return data_dicts
 

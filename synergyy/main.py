@@ -20,7 +20,7 @@ def arg_parse():
                         help='batch size (default: 256)')
     parser.add_argument('--epochs', type=int, default=50,
                         help='maximum number of epochs (default: 50)')
-    parser.add_argument('--train_test_mode', type=str, default='fine_tune',
+    parser.add_argument('--train_test_mode', type=str, default='train',
                         help='train or test or fine_tune')
     parser.add_argument('--SHAP_analysis', type=bool, default=False)
     parser.add_argument('--model', type=str, default='transynergy_liu',
@@ -34,7 +34,7 @@ def arg_parse():
                         help = 'DrugComb or Sanger2022 or Customized')
     parser.add_argument('--external_validation', type=bool, default=False,
                         required=False, help = 'True for Sanger2022 or customized')
-    parser.add_argument('--drug_omics', nargs="+", default=["drug_target_rwr","smiles_grover", "smiles", "smiles2graph_TGSynergy"],
+    parser.add_argument('--drug_omics', nargs="+", default=["drug_target","smiles_grover", "smiles", "smiles2graph_TGSynergy"],
                         required=False, help='drug_target/drug_target_rwr/morgan_fingerprint\
                             /smiles2graph/smiles2graph_TGSynergy/chemical_descriptor/smiles\
                             hetero_graph/ smiles_grover(3285)'    )    
