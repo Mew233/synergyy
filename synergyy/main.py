@@ -20,10 +20,8 @@ def arg_parse():
                         help='batch size (default: 256)')
     parser.add_argument('--epochs', type=int, default=50,
                         help='maximum number of epochs (default: 50)')
-    parser.add_argument('--train_test_mode', type=str, default='train',
-                        help='train or test')
-    parser.add_argument('--fine_tuning', type=str, default=False,
-                        help='fine tuning for corrected batch of CCLE before external validation')
+    parser.add_argument('--train_test_mode', type=str, default='fine_tune',
+                        help='train or test or fine_tune')
     parser.add_argument('--SHAP_analysis', type=bool, default=False)
     parser.add_argument('--model', type=str, default='transynergy_liu',
                         help='import model (default: transynergy_liu)')

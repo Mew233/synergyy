@@ -731,19 +731,19 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
         optimizer = torch.optim.Adam(network.parameters(), lr=1e-4)
 
         ## fine-tuning 
-        if args.fine_tuning == True:
+        if args.train_test_mode == 'fine_tune':
             network.load_state_dict(torch.load('best_model_%s_default.pth' % args.model))
             #Examine the layer's ID that we'd like to fix or free
             for i, param in enumerate(network.parameters()):
                 print(i, param.size(), param.requires_grad)
-            release_after = 53
+            release_after = 30
             for i, param in enumerate(network.parameters()):
-                if 50<=i<=release_after:
+                if i>=release_after:
                     param.requires_grad=True
                 else:
                     param.requires_grad=False
 
-            num_epochs = 10
+            num_epochs = 20
             optimizer = torch.optim.Adam(network.parameters(), lr=1e-5)
 
         for epoch in range(0, num_epochs):

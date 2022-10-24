@@ -245,7 +245,7 @@ def training_baselines(X_cell, X_drug, Y, args):
 
 def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
     if args.external_validation:
-        test_size = 0.9 #0.9999,0.99999
+        test_size = 0.99999 #0.9999,0.99999
     else:
         test_size = 0.2
     
@@ -417,6 +417,8 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
             net_weights = 'best_model_%s.pth' % args.model
         elif args.train_test_mode == 'train':
             net_weights = k_fold_trainer_graph_trans(train_val_dataset,model,args)
+        elif args.train_test_mode == 'fine_tune':
+            net_weights = k_fold_trainer_graph_trans(test_loader,model,args)
 
 # --------------- matchmaker --------------- #
     elif args.model == 'matchmaker_brahim':

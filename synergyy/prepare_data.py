@@ -76,7 +76,7 @@ def load_synergy(dataset,args):
 
         # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % "exp"),sep=',')
         # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tcga_DLBC_%s.csv' % "exp"),sep=',')
-        crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','batchcorr_columbia_DLBC_%s.csv' % "exp"),sep=',')
+        crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','batchcorr_columbia_DLBC_%s_20221014.csv' % "exp"),sep=',')
         # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','lstaudt_DLBC_%s.csv' % "exp"),sep=',')
         summary_data = pd.DataFrame(columns=['drug1','drug2','cell','tissue_name','score'])
         cell_list = list(crc_exp.columns)
@@ -121,7 +121,7 @@ def load_cellline_features(dataset,args):
     def process_CCLE():
 
         def load_file(postfix):
-            if args.fine_tuning == True:
+            if args.train_test_mode == 'fine_tune':
                 df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','batchcorr_CCLE_%s.csv' % postfix),sep=',')
             else:
                 df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','CCLE_%s.csv' % postfix),sep=',')

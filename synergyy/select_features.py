@@ -60,12 +60,15 @@ def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, m
         return selected_genes
 
     def ALL():
-        if len(cell_omics) > 1:
-            # if mut/cnv/exp, use exp
-            temp = cellFeature_dicts['exp']
-        else:
-            temp = cellFeature_dicts[cell_omics[0]]
-        var_df = temp.var(axis=1)
+        # use before batch corrected CCLE most vairance genes
+        # index is drug, so we need clean up the df
+        temp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','CCLE','CCLE_exp.csv'),sep=',')
+        temp.columns = ['Entrez gene id']+[split_it_cell(_) for _ in list(temp.columns)[1:]]
+        df_transpose = temp.T
+        df_transpose.columns = df_transpose.iloc[0]
+        processed_data = df_transpose.drop(df_transpose.index[0])
+
+        var_df = processed_data.var(axis=1)
         selected_genes = list(var_df.sort_values(ascending=False).iloc[:1000].index)
         data_dicts = np.load(os.path.join(ROOT_DIR, 'data', 'drug_data','input_drug_data.npy'),allow_pickle=True).item()
         drug_target = list(data_dicts['drug_target_rwr'].index)
