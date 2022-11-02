@@ -760,9 +760,9 @@ def k_fold_trainer_graph_trans(temp_loader_trainval,model,args):
                 data_sm1 = data[4]
                 data_sm2 = data[5]
 
-                targets = data_target.unsqueeze(1)
-                                
-
+                #label smoothing  
+                targets = abs(data_target - 0.1).unsqueeze(1)
+                 
                 # Zero the gradients
                 optimizer.zero_grad()
                 # forward + backward + optimize

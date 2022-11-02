@@ -11,6 +11,10 @@ from torch import cat, stack
 import numpy as np
 from models.TGSynergy import GNN_drug
 import torch 
+import os
+
+ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..','..'))
+save_path = os.path.join(ROOT_DIR, 'data','cell_line_data','tcga','tcga_encoder.pth')
 
 def get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
@@ -39,7 +43,7 @@ class AE(nn.Module):
         self.dop = dop
 
         if hidden_dims is None:
-            hidden_dims = [512,256]
+            hidden_dims = [512]
 
         # build encoder
         modules = []
@@ -63,7 +67,7 @@ class AE(nn.Module):
                 )
             )
         modules.append(nn.Dropout(self.dop))
-        # modules.append(nn.Linear(hidden_dims[-1], latent_dim, bias=True))
+        modules.append(nn.Linear(hidden_dims[-1], latent_dim, bias=True))
 
         self.encoder = nn.Sequential(*modules)
 
@@ -90,20 +94,35 @@ class AE(nn.Module):
                     nn.Dropout(self.dop)
                 )
             )
+            
         self.decoder = nn.Sequential(*modules)
+        self.final_layer = nn.Sequential(
+            nn.Linear(hidden_dims[-1], hidden_dims[-1], bias=True),
+            #nn.BatchNorm1d(hidden_dims[-1]),
+            nn.ReLU(),
+            nn.Dropout(self.dop),
+            nn.Linear(hidden_dims[-1], input_dim)
+        )
     
     def forward(self, input):
         encoded_input = self.encoder(input)
-        # if self.normalize_flag:
-        # encoded_input = nn.functional.normalize(encoded_input, p=2, dim=1)
-        # output = self.decoder(encoded_input)
+        encoded_input = nn.functional.normalize(encoded_input, p=2, dim=1)
+        output = self.final_layer(self.decoder(encoded_input))
 
-        return encoded_input
+        return output
+
+    def encode(self, input):
+        return self.encoder(input)
+
+    def decode(self, z):
+        return self.decoder(z)
 
 class Transynergy_Liu(nn.Module):
     def __init__(self, d_input, d_model, n_feature_type, N, heads, dropout):
         super().__init__()
         self.ae = AE(4298,d_model)
+        self.ae.load_state_dict(torch.load(save_path))
+
         self.reduction = nn.Linear(d_input, d_model, bias=True)
         self.reduction2 = nn.Linear(3285, d_model, bias=True)
 
@@ -127,7 +146,7 @@ class Transynergy_Liu(nn.Module):
         ## 2) 5 layers
         _src = self.reduction(src)
         _fp = self.reduction2(fp)
-        _cell = self.ae(sm1)
+        _cell = self.ae.encode(sm1)
         _cell = torch.unsqueeze(_cell, dim=1)
         cat_input = cat((_src,_fp,_cell), dim=1)
         

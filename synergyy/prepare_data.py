@@ -66,40 +66,62 @@ def load_synergy(dataset,args):
         summary_data = data[['compound0_x','compound0_y','DepMap_ID','synergy_loewe']].rename(columns={\
             'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID':'cell','synergy_loewe':'score'})
         
-        return summary_data
+        #only test drugs that were see in drugcomb
+        drugcomb = process_drugcomb()
+        bags = drugcomb['drug1'].unique().tolist() + drugcomb['drug2'].unique().tolist()
+        s_1 = summary_data[summary_data['drug1'].isin(bags)]
+        s_2 = s_1[s_1['drug2'].isin(bags)]
+
+        return s_2
 
     #create a dummy synergy dataframe
     def process_customized():
-        drugcomb = process_drugcomb()
-        # drugcomb_colon = drugcomb[drugcomb['tissue_name'] == 'haematopoietic_and_lymphoid']
-        drugcomb_colon = drugcomb.drop_duplicates(subset=['drug1', 'drug2'])
+        # drugcomb = process_drugcomb()
+        # # drugcomb_colon = drugcomb[drugcomb['tissue_name'] == 'haematopoietic_and_lymphoid']
+        # drugcomb_colon = drugcomb.drop_duplicates(subset=['drug1', 'drug2'])
 
-        # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % "exp"),sep=',')
-        # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tcga_DLBC_%s.csv' % "exp"),sep=',')
-        crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','batchcorr_columbia_DLBC_%s_20221014.csv' % "exp"),sep=',')
-        # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','lstaudt_DLBC_%s.csv' % "exp"),sep=',')
-        summary_data = pd.DataFrame(columns=['drug1','drug2','cell','tissue_name','score'])
-        cell_list = list(crc_exp.columns)
-        for crc_cell in cell_list: #0:255, 255:
-            drugcomb_colon['cell'] = crc_cell
-            drugcomb_colon['score'] = 0
-            summary_data = summary_data.append(drugcomb_colon, ignore_index=True)
+        # # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % "exp"),sep=',')
+        # # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tcga_DLBC_%s.csv' % "exp"),sep=',')
+        # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_columbia_DLBC_%s_20221014.csv' % "exp"),sep=',')
+        # # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','lstaudt_DLBC_%s.csv' % "exp"),sep=',')
+        # summary_data = pd.DataFrame(columns=['drug1','drug2','cell','tissue_name','score'])
+        # cell_list = list(crc_exp.columns)
+        # for crc_cell in cell_list: #0:255, 255:
+        #     drugcomb_colon['cell'] = crc_cell
+        #     drugcomb_colon['score'] = 0
+        #     summary_data = summary_data.append(drugcomb_colon, ignore_index=True)
 
-        summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','tissue_name','score'])
+        # summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','tissue_name','score'])
         
         #// for dcdb
-        # summary_data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Customized','dcdb_tmd8.csv'),sep=',').iloc[:,1:]
-        # summary_data['cell'] = "TMD8_ABC_EL025"
-        # dcdb_tmd8 = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Customized','dcdb_tmd8.csv'),sep=',').iloc[:,1:]
-        # columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','columbia_DLBC_%s.csv' % "exp"),sep=',')
-        # summary_data = pd.DataFrame(columns=['drug1','drug2','cell','score'])
-        # cell_list = list(columbia_exp.columns)
-        # # cell_list = ["TMD8_ABC_EL025"]
-        # for crc_cell in cell_list:
-        #     dcdb_tmd8['cell'] = crc_cell
-        #     dcdb_tmd8['score'] = 0
-        #     summary_data = summary_data.append(dcdb_tmd8, ignore_index=True)
-        # summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell'])
+        summary_data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Customized','dcdb_tmd8.csv'),sep=',').iloc[:,1:]
+        summary_data['cell'] = "TMD8_ABC_EL025"
+        dcdb_tmd8 = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Customized','dcdb_tmd8.csv'),sep=',').iloc[:,1:]
+        columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_columbia_DLBC_%s_20221014.csv' % "exp"),sep=',')
+        # columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_lstaudt_DLBC_%s.csv' % "exp"),sep=',')
+        dcdb_tmd8 = dcdb_tmd8.groupby(['drug1','drug2','cell']).agg({\
+            "score":'mean'}).reset_index()
+        
+        summary_data = pd.DataFrame(columns=['drug1','drug2','cell','score'])
+        summary_data = summary_data[summary_data['drug2'] == 9053]
+        # add a shuffle
+        # bags = dcdb_tmd8['drug1'].unique().tolist() + dcdb_tmd8['drug2'].unique().tolist()
+        # bags.remove(9053)
+        # random_shuffle = pd.DataFrame({'drug1':bags, 'drug2':bags})
+        # random_shuffle = random_shuffle.apply(lambda x: x.sample(frac=1).values)
+    
+        cell_list = list(columbia_exp.columns)
+        # cell_list = ["TMD8_ABC_EL025"]
+        for crc_cell in cell_list:
+            dcdb_tmd8['cell'] = crc_cell
+            # dcdb_tmd8['score'] = 0
+            summary_data = summary_data.append(dcdb_tmd8, ignore_index=True)
+            #
+            # random_shuffle['cell'] = crc_cell
+            # random_shuffle['score'] = -1
+            # summary_data = summary_data.append(random_shuffle, ignore_index=True)
+
+        summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','score'])
         return summary_data
 
     # use locals() to run the specified function
@@ -196,8 +218,8 @@ def load_cellline_features(dataset,args):
         def load_file(postfix):
             # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % postfix),sep=',')
             # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tcga_DLBC_%s.csv' % postfix),sep=',')
-            df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','batchcorr_columbia_DLBC_exp.csv'),sep=',')
-            # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','lstaudt_DLBC_%s.csv' % "exp"),sep=',')
+            df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_columbia_DLBC_exp_20221014.csv'),sep=',')
+            # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_lstaudt_DLBC_%s.csv' % "exp"),sep=',')
             return df
         # load all cell line features
         save_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized')
