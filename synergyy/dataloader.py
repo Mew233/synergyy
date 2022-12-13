@@ -19,6 +19,7 @@ import random
 import pandas as pd
 import shap as sp
 from tqdm import tqdm
+import dill
 
 torch.manual_seed(42)
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
@@ -875,8 +876,7 @@ class MyDataset_combonet(TensorDataset):
 
     def __getitem__(self, index):
 
-        return (self.df.loc[index,0], self.df.loc[index,1], self.df.loc[index,2], self.df.loc[index,3],
-        self.df.loc[index,4],self.df.loc[index,5],self.df.loc[index,6])
+        return (self.df.loc[index,0], self.df.loc[index,1], self.df.loc[index,2], self.df.loc[index,3],self.df.loc[index,4])
 
 
 def k_fold_trainer_graph_combonet(temp_loader_trainval,model,args):
@@ -886,9 +886,6 @@ def k_fold_trainer_graph_combonet(temp_loader_trainval,model,args):
     train_val_dataset_index = temp_loader_trainval[2].tolist()
     train_val_dataset_input2 = temp_loader_trainval[3]
     train_val_dataset_input3 = temp_loader_trainval[4]
-
-    train_val_dataset_ic1 = temp_loader_trainval[5].tolist()
-    train_val_dataset_ic2 = temp_loader_trainval[6].tolist()
 
     # Configuration options
     k_folds = 5
@@ -908,7 +905,7 @@ def k_fold_trainer_graph_combonet(temp_loader_trainval,model,args):
     # for fold, (train_ids, test_ids) in enumerate(skf.split(X,y)):
     
     trainval_df = [train_val_dataset_input,train_val_dataset_target,train_val_dataset_index,train_val_dataset_input2,\
-        train_val_dataset_input3,train_val_dataset_ic1,train_val_dataset_ic2]
+        train_val_dataset_input3]
     trainval_df = pd.DataFrame(trainval_df).T
 
 
@@ -964,22 +961,15 @@ def k_fold_trainer_graph_combonet(temp_loader_trainval,model,args):
                     data2 = data[3]
                     data3 = data[4]
 
-                    ic1 = data[5]
-                    ic2 = data[6]
-
                     targets = data_target.unsqueeze(1)
                                     
 
                     # Zero the gradients
                     optimizer.zero_grad()
                     # forward + backward + optimize
-                    outputs, score1, score2 = network(data1,data2,data3)
+                    outputs = network(data1,data2,data3)
 
-                    if not isAux:
-                        loss = loss_function(outputs, targets.to(torch.float32))
-                    else:
-                        loss = loss_function(score1, ic1.view(-1,1).to(torch.float32))\
-                            +loss_function(score2, ic2.view(-1,1).to(torch.float32))
+                    loss = loss_function(outputs, targets.to(torch.float32))
 
                     loss.backward()
                     optimizer.step()
@@ -1012,13 +1002,10 @@ def k_fold_trainer_graph_combonet(temp_loader_trainval,model,args):
                 data2 = data[3]
                 data3 = data[4]
 
-                ic1 = data[4]
-                ic2 = data[5]
-
                 targets = data_target
 
                 # forward + backward + optimize
-                outputs, score1, score2 = network(data1,data2,data3)
+                outputs = network(data1,data2,data3)
                 outputs = outputs.squeeze(1)
                 outputs = outputs.detach().numpy()
 
@@ -1180,32 +1167,76 @@ def SHAP(model, model_weights,train_val_dataset, test_loader,args):
 
     # --------------- transynergy_liu ---------------- #
     elif args.model == 'transynergy_liu':
-        explainer = sp.GradientExplainer(model, background[0])
-        expected_value = model(background[0]).mean(0)
+        # a dict to store both activations
+        # activation = {}
+        # def getActivation(name):
+        #     def hook(model, input, output):
+        #         if name in activation:
+        #             activation[name].append(output.detach())
+        #         else:
+        #             activation[name] = [output.detach()]
+        #     return hook
+
+        #     model.encoder.layers[0].attn.q_linear.register_forward_hook(getActivation('q'))
+        #     model.encoder.layers[0].attn.k_linear.register_forward_hook(getActivation('k'))
+
+        #     out = model(background[0],background[3],background[4])
+
+        #============for shapely=====================
+        # X(drug target), Y, dummy, X2(FP), X_SM1(cell), X_SM2(cell)
+        # explainer = sp.DeepExplainer(model, [background[0],background[3],background[4]])
+        # expected_value = explainer.expected_value
+        explainer = sp.GradientExplainer(model, [background[0],background[3],background[4]])
+        
+        ex_filename = 'explainer.bz2'
+        # with open(ex_filename, 'wb') as f:
+        #     dill.dump(explainer, f)
+        with open(ex_filename, 'rb') as f:
+            ex2 = dill.load(f)
+
+        # expected_value = model(background[0],background[3],background[4]).mean(0)
+        expected_value = 0.3088
         shap_list, features_list = list(), list()
         # predictions, actuals = list(), list()
         for i, data in enumerate(test_loader, 0):
             # get the inputs; data is a list of [inputs, labels]
             inputs, _ = data[:-1], data[-1]
-            shap_array_list = explainer.shap_values(inputs[0])
+            shap_array_list = ex2.shap_values([inputs[0],inputs[3],inputs[4]])
             shap_list.append(shap_array_list)
-            features_list.append(inputs[0].numpy())
+            features_list.append(inputs[2].numpy()) #index
         
         shap_df = pd.DataFrame()
         features_df = pd.DataFrame()
+        #get gene
+        proessed_dpi = pd.read_csv(os.path.join(ROOT_DIR, 'results','proessed_dpi.csv'),index_col=0)
+        genes = proessed_dpi.index
+        save_path = os.path.join(ROOT_DIR, 'results')
+        exp_col_list = np.array(list(np.loadtxt(os.path.join(save_path,'selected_genes.txt'), delimiter=',').astype(int)))
+
         for i in tqdm(np.arange(len(shap_list))):
             #batch
-            for j in np.arange(len(shap_list[i])):
-                #record in batch
-                d1_shap_arr, d2_shap_arr, exp_shap_arr = shap_list[i][j]
-                shap_arr = np.concatenate((d1_shap_arr, d2_shap_arr, exp_shap_arr), axis=None)
+            #record in batch
+            dts_shap_arr, fps_shap_arr, exp_shap_arr = shap_list[i][0], shap_list[i][1], shap_list[i][2]
+            index = features_list[i]
+            for j in np.arange(dts_shap_arr.shape[0]):
+                shap_arr = np.concatenate((np.sum(dts_shap_arr[j],axis=1), \
+                    np.sum(fps_shap_arr[j],axis=1), np.sum(exp_shap_arr[j]),\
+                        index[j]), axis=None)
                 temp = pd.DataFrame(shap_arr).T
+                temp['d1tg_score'] =  [np.sort(dts_shap_arr[j][0])[::-1][:50]]
+                temp['d1tg_gene'] =  [genes[np.argsort(dts_shap_arr[j][0])[::-1][:50]].values]
+                #drug2
+                temp['d2tg_score'] =  [np.sort(dts_shap_arr[j][1])[::-1][:50]]
+                temp['d2tg_gene'] =  [genes[np.argsort(dts_shap_arr[j][1])[::-1][:50]].values]
+                #cell
+                temp['cell_score'] =  [np.sort(exp_shap_arr[j])[::-1][:50]]
+                temp['cell_gene'] =  [exp_col_list[np.argsort(exp_shap_arr[j])[::-1][:50]]]
+
                 shap_df = shap_df.append(temp)
 
-                chem_feat_arr, dg_feat_arr, exp_feat_arr = features_list[i][j]
-                feat_arr = np.concatenate((chem_feat_arr, dg_feat_arr, exp_feat_arr), axis=None)
-                temp_feat = pd.DataFrame(feat_arr).T
-                features_df = features_df.append(temp_feat)
+        
+        shap_df.columns = [['d1tg','d2tg','d1fp','d2fp','cell','index','d1tg_score','d1tg_gene',\
+            'd2tg_score','d2tg_gene','cell_score','cell_gene']]
 
 # --------------- matchmaker --------------- #
     elif args.model in ['matchmaker_brahim','multitaskdnn_kim']:

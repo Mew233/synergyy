@@ -58,12 +58,12 @@ def load_synergy(dataset,args):
         return summary_data
     
     def process_sanger2022():
-        data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Sanger2022','drug_combinations_TGSA_Jaaks.csv'))
+        data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Sanger2022','Jaaks2022_trueset_xiabo.csv'))
         data['compound0_x'] = data['compound0_x'].apply(lambda x: split_it(x))
         data['compound0_y'] = data['compound0_y'].apply(lambda x: split_it(x))
         data['synergy_loewe'] = data['synergy_loewe'].apply(lambda x: x*1)
 
-        summary_data = data[['compound0_x','compound0_y','DepMap_ID','synergy_loewe']].rename(columns={\
+        summary_data = data[['compound0_x','compound0_y','DepMap_ID','synergy_loewe','Tissue']].rename(columns={\
             'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID':'cell','synergy_loewe':'score'})
         
         #only test drugs that were see in drugcomb
@@ -71,6 +71,8 @@ def load_synergy(dataset,args):
         bags = drugcomb['drug1'].unique().tolist() + drugcomb['drug2'].unique().tolist()
         s_1 = summary_data[summary_data['drug1'].isin(bags)]
         s_2 = s_1[s_1['drug2'].isin(bags)]
+
+        s_2 = s_2[s_2['Tissue'] == "pancreas"]
 
         return s_2
 
@@ -93,35 +95,51 @@ def load_synergy(dataset,args):
 
         # summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','tissue_name','score'])
         
-        #// for dcdb
-        summary_data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Customized','dcdb_tmd8.csv'),sep=',').iloc[:,1:]
-        summary_data['cell'] = "TMD8_ABC_EL025"
+
+        # for dcdb
         dcdb_tmd8 = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Customized','dcdb_tmd8.csv'),sep=',').iloc[:,1:]
-        columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_columbia_DLBC_%s_20221014.csv' % "exp"),sep=',')
-        # columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_lstaudt_DLBC_%s.csv' % "exp"),sep=',')
         dcdb_tmd8 = dcdb_tmd8.groupby(['drug1','drug2','cell']).agg({\
             "score":'mean'}).reset_index()
-        
         summary_data = pd.DataFrame(columns=['drug1','drug2','cell','score'])
-        summary_data = summary_data[summary_data['drug2'] == 9053]
-        # add a shuffle
-        # bags = dcdb_tmd8['drug1'].unique().tolist() + dcdb_tmd8['drug2'].unique().tolist()
-        # bags.remove(9053)
+        # columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_columbia_DLBC_%s_20221014.csv' % "exp"),sep=',')
+        columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_lstaudt_DLBC_%s.csv' % "exp"),sep=',')
+        cell_list = list(columbia_exp.columns)
+        for crc_cell in cell_list:
+            dcdb_tmd8['cell'] = crc_cell
+            summary_data = summary_data.append(dcdb_tmd8, ignore_index=True)
+
+        summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','score'])
+
+        # #// for clincials
+        # summary_data = pd.DataFrame(columns=['drug1','drug2','cell','score'])
+        # clinicals = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Customized','clinicaltrialsgov_confi.csv'),sep=',').iloc[:,1:]
+        # clinicals = clinicals[["compound0_x","compound0_y","cell","score"]].rename(columns={\
+        #     'compound0_x':'drug1','compound0_y':'drug2'})
+        # clinicals['drug1'] = clinicals['drug1'].apply(lambda x: split_it(x))
+        # clinicals['drug2'] = clinicals['drug2'].apply(lambda x: split_it(x))
+
+        # drugcomb = process_drugcomb()
+        # drugcomb_lym = drugcomb[drugcomb['tissue_name'] == 'haematopoietic_and_lymphoid']
+
+        # # add a shuffle
+        # bags = clinicals['drug1'].unique().tolist() + clinicals['drug2'].unique().tolist()
         # random_shuffle = pd.DataFrame({'drug1':bags, 'drug2':bags})
         # random_shuffle = random_shuffle.apply(lambda x: x.sample(frac=1).values)
     
-        cell_list = list(columbia_exp.columns)
-        # cell_list = ["TMD8_ABC_EL025"]
-        for crc_cell in cell_list:
-            dcdb_tmd8['cell'] = crc_cell
-            # dcdb_tmd8['score'] = 0
-            summary_data = summary_data.append(dcdb_tmd8, ignore_index=True)
-            #
-            # random_shuffle['cell'] = crc_cell
-            # random_shuffle['score'] = -1
-            # summary_data = summary_data.append(random_shuffle, ignore_index=True)
+        # # cell_list = list(set(drugcomb_lym["cell"]))
+        # # columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_columbia_DLBC_%s_20221014.csv' % "exp"),sep=',')
+        # columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_lstaudt_DLBC_%s.csv' % "exp"),sep=',')
+        # cell_list = list(columbia_exp.columns)
 
-        summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','score'])
+        # for crc_cell in cell_list:
+        #     clinicals['cell'] = crc_cell
+        #     summary_data = summary_data.append(clinicals, ignore_index=True)
+        #     #
+        #     random_shuffle['cell'] = crc_cell
+        #     random_shuffle['score'] = -1
+        #     summary_data = summary_data.append(random_shuffle, ignore_index=True)
+
+        # summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','score'])
         return summary_data
 
     # use locals() to run the specified function
@@ -218,8 +236,8 @@ def load_cellline_features(dataset,args):
         def load_file(postfix):
             # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % postfix),sep=',')
             # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tcga_DLBC_%s.csv' % postfix),sep=',')
-            df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_columbia_DLBC_exp_20221014.csv'),sep=',')
-            # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_lstaudt_DLBC_%s.csv' % "exp"),sep=',')
+            # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_columbia_DLBC_exp_20221014.csv'),sep=',')
+            df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_lstaudt_DLBC_%s.csv' % "exp"),sep=',')
             return df
         # load all cell line features
         save_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized')
@@ -315,7 +333,7 @@ def load_drug_features():
         
         proessed_dpi = pd.DataFrame(target_feats)
         proessed_dpi.index = drug_targets_L['NCBI_ID'].unique()
-        proessed_dpi.to_csv(os.path.join(ROOT_DIR, 'results','proessed_dpi.csv'))
+        proessed_dpi.to_csv(os.path.join(ROOT_DIR, 'results','proessed_dpi_db.csv'))
 
         return proessed_dpi
 
@@ -545,7 +563,7 @@ def load_drug_features():
     else:
         data_dicts = np.load(save_path,allow_pickle=True).item()
         # data_dicts['smiles_grover'] = process_smilesGrover()
-        # data_dicts['drug_target'] = process_dpi()
+        data_dicts['drug_target'] = process_dpi()
         # data_dicts['drug_target_rwr'] = process_dpi_RWR()
         # data_dicts['drug_target_rwr'].columns = data_dicts['drug_target_rwr'].columns.values.astype(int)
 

@@ -327,11 +327,13 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
 # --------------- combonet --------------- #
     elif args.model == 'combonet':
         X, X2, X3 = [],[],[]
-        for index, (d1, d2, cell) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell)):
-            t = torch.from_numpy(np.vstack((d1,cell))).float()
+        for index, (d1, d2, cell, fp1, fp2) in enumerate(zip(X_drug['drug_target_1'], X_drug['drug_target_2'], X_cell,\
+            X_drug['smiles_grover_1'],X_drug['smiles_grover_2'])):
+            t = torch.from_numpy(np.vstack((d1,d2))).float()
             # t = torch.from_numpy(np.expand_dims(d1, axis=0)).float()
-            t2 = torch.from_numpy(np.vstack((d2,cell))).float()
-            t3 = torch.from_numpy(np.vstack((d1,d2,cell))).float()
+            t2 = torch.from_numpy(np.vstack((fp1,fp2))).float()
+            # t3 = torch.from_numpy(np.vstack((d1,d2,cell))).float()
+            t3 = torch.from_numpy(np.array(cell)).float()
             X.append(t.float())
             X2.append(t2.float())
             X3.append(t3.float())
@@ -339,8 +341,8 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
         #len(max(smiles_list, key = len)) is 244
 
         X_trainval, X_test, Y_trainval, Y_test, dummy_trainval, dummy_test, X2_trainval, X2_test,  \
-            X3_trainval, X3_test, Yic1_trainval, Yic1_test, Yic2_trainval, Yic2_test,\
-            = train_test_split(X, Y, dummy, X2, X3,Y_ic1, Y_ic2, test_size=test_size, random_state=42)
+            X3_trainval, X3_test\
+            = train_test_split(X, Y, dummy, X2, X3,test_size=test_size, random_state=42)
 
         save_path = os.path.join(ROOT_DIR, 'results','test_idx.txt')
         np.savetxt(save_path,dummy_test.astype(int), delimiter=',')
@@ -350,8 +352,7 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
         # train_val set for k-fold, test set for testing
         train_val_dataset, test_loader = dataloader_graph(X_trainval=X_trainval, X_test=X_test,\
             Y_trainval=Y_trainval, Y_test=Y_test, dummy_trainval = dummy_trainval, dummy_test=dummy_test, \
-                 X2_trainval=X2_trainval, X2_test=X2_test,X3_trainval=X3_trainval, X3_test=X3_test,\
-                    Yic1_trainval=Yic1_trainval, Yic1_test=Yic1_test, Yic2_trainval=Yic2_trainval, Yic2_test=Yic2_test)
+                 X2_trainval=X2_trainval, X2_test=X2_test,X3_trainval=X3_trainval, X3_test=X3_test)
 
         # load the best model
         if args.train_test_mode == 'test':
@@ -613,8 +614,8 @@ def evaluate(model, model_weights, test_loader, train_val_dataset, args):
     accuracy = accuracy_score(y_true=actuals, y_pred=np.round(predictions))
     precision = precision_score(y_true=actuals, y_pred=np.round(predictions))
     recall = recall_score(y_true=actuals, y_pred=np.round(predictions))
-    f2 = fbeta_score(y_true=actuals, y_pred=np.round(predictions), average='binary', beta=2)
+    f1 = fbeta_score(y_true=actuals, y_pred=np.round(predictions), average='binary', beta=1)
  
-    val_results = {'AUC':auc, 'AUPR':ap,'accuracy':accuracy,'precision':precision,'recall':recall,'f2':f2}
+    val_results = {'AUC':auc, 'AUPR':ap,'accuracy':accuracy,'precision':precision,'recall':recall,'f1':f1}
 
     return val_results
