@@ -245,7 +245,7 @@ def training_baselines(X_cell, X_drug, Y, args):
 
 def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
     if args.external_validation:
-        test_size = 0.99999 #0.9999,0.99999
+        test_size = 1-0.1**(len(str(len(X_cell)))-1) #0.9999,0.99999
     else:
         test_size = 0.2
     

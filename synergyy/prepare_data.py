@@ -55,6 +55,12 @@ def load_synergy(dataset,args):
             'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID':'cell','synergy_loewe':'score',\
                 'ri_row':'ic_1', 'ri_col':'ic_2'})
 
+        proessed_dpi = pd.read_csv(os.path.join(ROOT_DIR, 'results','proessed_dpi_extended.csv'),index_col=0)
+        proessed_dpi.columns = proessed_dpi.columns.astype(int)
+        library = set(proessed_dpi.columns)
+        summary_data = summary_data[summary_data['drug1'].isin(library)]
+        summary_data = summary_data[summary_data['drug2'].isin(library)]
+
         return summary_data
     
     def process_sanger2022():
@@ -109,6 +115,23 @@ def load_synergy(dataset,args):
             summary_data = summary_data.append(dcdb_tmd8, ignore_index=True)
 
         summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','score'])
+        ## -------------- 所有ccle
+        # directory = os.path.join(ROOT_DIR,'data', 'cell_line_data','Customized','TCGA_PAN_RNA_TPM')
+        # summary_data = pd.DataFrame(columns=['drug1','drug2','cell','score',"tissue"])
+        # counter = 0
+        # for file in os.listdir(directory):
+        #     filename = os.fsdecode(file)
+        #     counter += 1
+        #     if filename.endswith("tcga_DLBC_RNA_counts_csv_tpm.csv") and counter <=10:
+                
+        #         tpm_exp = pd.read_csv(os.path.join(directory, filename))
+        #         cell_list = list(tpm_exp.columns)
+        #         for crc_cell in cell_list:
+        #             dcdb_tmd8['cell'] = crc_cell
+        #             dcdb_tmd8['tissue'] = filename.split("_")[1]
+        #             summary_data = summary_data.append(dcdb_tmd8, ignore_index=True)
+        #         # print(os.path.join(directory, filename))
+        # summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','score'])
 
         # #// for clincials
         # summary_data = pd.DataFrame(columns=['drug1','drug2','cell','score'])
@@ -185,6 +208,19 @@ def load_cellline_features(dataset,args):
                 # set first row as column
                 df_transpose.columns = df_transpose.iloc[0]
                 processed_data = df_transpose.drop(df_transpose.index[0])
+                            # use entrez gene id as index
+            if postfix != "mut": 
+                if postfix == "GSVA_scores":
+                    # X_tr, means1, std1, means2, std2, feat_filt = normalize(df, norm='tanh_norm')
+                    # X_tr = pd.DataFrame(X_tr,columns=df.columns,index=df.index)
+                    processed_data = df
+
+                else:
+                    df.columns = ['Entrez gene id']+[split_it_cell(_) for _ in list(df.columns)[1:]]
+                    df_transpose = df.T
+                    # set first row as column
+                    df_transpose.columns = df_transpose.iloc[0]
+                    processed_data = df_transpose.drop(df_transpose.index[0])
 
             else:
                 ## same as exp
@@ -238,19 +274,23 @@ def load_cellline_features(dataset,args):
             # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tcga_DLBC_%s.csv' % postfix),sep=',')
             # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_columbia_DLBC_exp_20221014.csv'),sep=',')
             df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_lstaudt_DLBC_%s.csv' % "exp"),sep=',')
+
+            # directory = os.path.join(ROOT_DIR,'data', 'cell_line_data','Customized','TCGA_PAN_RNA_TPM')
+            # data_list = []
+            # for file in os.listdir(directory):
+            #     filename = os.fsdecode(file)
+            #     if filename.endswith("_tpm.csv"):
+            #         df = pd.read_csv(os.path.join(directory,filename))
+            #         data_list.append(df)
+            # df = pd.concat(data_list, axis=1, join="inner")
             return df
         # load all cell line features
         save_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized')
         save_path = os.path.join(save_path, 'input_cellline_data.npy')
-        if not os.path.exists(save_path):
-            data_dicts = {}
-            for file_type in ['exp']: #only exp have
-                data_dicts[ file_type ] = load_file(file_type)
-            np.save(save_path, data_dicts)
-        else:
-            data_dicts = np.load(save_path,allow_pickle=True).item()
-            for file_type in ['exp']: #only exp have
-                data_dicts[ file_type ] = load_file(file_type)
+
+        data_dicts = np.load(save_path,allow_pickle=True).item()
+        for file_type in ['exp']: #only exp have
+            data_dicts[ file_type ] = load_file(file_type)
         return data_dicts
 
     data = locals()[function_mapping[dataset]]()
@@ -312,10 +352,11 @@ def load_drug_features():
     def process_dpi():
         # load drug target dataset
         targets = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_targets.csv'))
-        enzymes = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_enzyme.csv'))
-        carrier = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_carrier.csv'))
-        transporter = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_transporter.csv'))
-        all = pd.concat([targets,enzymes,carrier,transporter])
+        # enzymes = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_enzyme.csv'))
+        # carrier = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_carrier.csv'))
+        # transporter = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_transporter.csv'))
+        # all = pd.concat([targets,enzymes,carrier,transporter])
+        all = targets
         drug_targets = explode_dpi(all)
 
         dtc = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','dtc_db2ncbi.csv'))
@@ -333,8 +374,23 @@ def load_drug_features():
         
         proessed_dpi = pd.DataFrame(target_feats)
         proessed_dpi.index = drug_targets_L['NCBI_ID'].unique()
-        proessed_dpi.to_csv(os.path.join(ROOT_DIR, 'results','proessed_dpi_db.csv'))
+        # proessed_dpi.to_csv(os.path.join(ROOT_DIR, 'results','proessed_dpi_db.csv'))
 
+        # network = nx.read_edgelist(os.path.join(ROOT_DIR, 'data','cell_line_data','PPI','string_network'), delimiter='\t', nodetype=int,
+        #                    data=(('weight', float),))
+
+        # data_dicts = np.load(os.path.join(ROOT_DIR, 'data', 'cell_line_data',"CCLE",'input_cellline_data.npy'),allow_pickle=True).item()
+        # ccle = data_dicts['exp']
+        # customized = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data',"Customized",'crc_exp.csv'), index_col=0)
+        # tcga = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data',"Customized",'tcga_colon_exp.csv'), index_col=0)
+
+        # #column is drugbank id, row is entrez id
+        # proessed_dpi = proessed_dpi.loc[proessed_dpi.index.isin(list(network.nodes)), :]
+        # proessed_dpi = proessed_dpi.loc[proessed_dpi.index.isin(list(ccle.index)), :]
+        # proessed_dpi = proessed_dpi.loc[proessed_dpi.index.isin(list(customized.index)), :]
+        # proessed_dpi = proessed_dpi.loc[proessed_dpi.index.isin(list(tcga.index)), :]
+        proessed_dpi = pd.read_csv(os.path.join(ROOT_DIR, 'results','proessed_dpi_extended.csv'),index_col=0)
+        proessed_dpi.columns = proessed_dpi.columns.astype(int)
         return proessed_dpi
 
     ##RWR algorithm for drug-target from transynergy
@@ -563,7 +619,7 @@ def load_drug_features():
     else:
         data_dicts = np.load(save_path,allow_pickle=True).item()
         # data_dicts['smiles_grover'] = process_smilesGrover()
-        data_dicts['drug_target'] = process_dpi()
+        # data_dicts['drug_target'] = process_dpi()
         # data_dicts['drug_target_rwr'] = process_dpi_RWR()
         # data_dicts['drug_target_rwr'].columns = data_dicts['drug_target_rwr'].columns.values.astype(int)
 
@@ -575,7 +631,7 @@ def load_drug_features():
         ##hetergnn, 如果已保存data_dicts, 没有必要重新跑下面这两个
         # data_dicts['hetero_graph'] = process_hetero_network()
         
-        # np.save(save_path, data_dicts)
+        np.save(save_path, data_dicts)
 
     return data_dicts
 

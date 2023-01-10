@@ -120,7 +120,7 @@ class AE(nn.Module):
 class Transynergy_Liu(nn.Module):
     def __init__(self, d_input, d_model, n_feature_type, N, heads, dropout):
         super().__init__()
-        self.ae = AE(4298,d_model)
+        self.ae = AE(4092,d_model)#2734
         self.ae.load_state_dict(torch.load(save_path))
 
         self.reduction = nn.Linear(d_input, d_model, bias=True)

@@ -57,9 +57,14 @@ def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, m
     
     def filter_by_706_genes():
         # following is copied from prepare_data
-        exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data', 'CCLE','CCLE_exp.csv'), index_col=0)
-        gene_list = exp.columns.to_list()
-        gene_list = [int(gene[1:-1]) for gene in gene_list]
+        temp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data', 'CCLE','CCLE_exp.csv'), index_col=0)
+        temp.columns = ['Entrez gene id']+[split_it_cell(_) for _ in list(temp.columns)[1:]]
+        df_transpose = temp.T
+        df_transpose.columns = df_transpose.iloc[0]
+        processed_data = df_transpose.drop(df_transpose.index[0])
+
+        var_df = processed_data.var(axis=1)
+        gene_list = list(var_df.sort_values(ascending=False).iloc[:1000].index)
 
         #
         ppi_data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','PPI','protein-protein_network.csv'))
@@ -99,7 +104,8 @@ def get_cell(cellFeature_dicts, synergy_cellset, cell_omics, cell_filtered_by, m
         selected_rows = list(set(selected_genes) & set(list(type_df.index)))
 
         trimmed_type_df = type_df.loc[selected_rows, selected_cols]
-        trimmed_type_df.dropna(axis=0, how='any',inplace=True)
+        #trimmed_type_df.dropna(axis=0, how='any',inplace=True)
+        trimmed_type_df = trimmed_type_df.fillna(0)
         trimmed_type_df = trimmed_type_df[~trimmed_type_df.index.duplicated(keep='first')]
 
         CCLE_dicts[ccle_type] = trimmed_type_df
