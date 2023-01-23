@@ -56,7 +56,11 @@ def prepare_data(args):
 
         # GSVA不需要filter genes.但事实tabular format
         if "GSVA_scores" in args.cell_omics:
-            cell_feats['GSVA_scores'] = cellFeatures_dicts['GSVA_scores']
+            if config['get_cellfeature_concated'] == False:
+                cell_feats['GSVA_scores'] = cellFeatures_dicts['GSVA_scores']
+            else:
+                cell_feats = cellFeatures_dicts['GSVA_scores']
+            # selected_cells = cell_feats['GSVA_scores'].columns
 
     elif args.cell_omics[0] in ["GNN_cell"]:
         #这里load了更多的cell
@@ -248,7 +252,7 @@ def training_baselines(X_cell, X_drug, Y, args):
 
 def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
     if args.external_validation:
-        test_size = 0.9 #0.9999,0.99999
+        test_size = 1-0.1**(len(str(len(X_cell['GSVA_scores'])))-1) #0.9999,0.99999
     else:
         test_size = 0.2
     
@@ -371,10 +375,10 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
         X_sm1, X_sm2 = [], []
         X_sm1_graph, X_sm2_graph = [], []
         
-        for index, (d1, d2, cell, fp1, fp2, sm1, sm2, sm1g,sm2g) in enumerate(zip(X_drug['drug_target_rwr_1'], X_drug['drug_target_rwr_2'], X_cell['exp'],\
+        for index, (d1, d2, cell, fp1, fp2, sm1, sm2, sm1g,sm2g) in enumerate(zip(X_drug['drug_target_1'], X_drug['drug_target_2'], X_cell['exp'],\
             X_drug['smiles.grover_1'],X_drug['smiles.grover_2'], \
                 X_drug['drug_GSVA_1'],X_drug['drug_GSVA_2'], X_cell['GSVA_scores'],X_drug['smiles2graph_TGSynergy_2'])):
-            array_tuple = (d1, d2, cell)
+            array_tuple = (d1, d2)
             array = np.vstack(array_tuple)
             t = torch.from_numpy(array).float()
 
@@ -390,8 +394,10 @@ def training(X_cell, X_drug, Y, Y_ic1, Y_ic2, args):
             # padded_sm2 = np.pad(sm2, pad_width=(0, 244-len(sm2)), mode='constant', constant_values=0)
             # X_sm1.append(torch.from_numpy(np.array(padded_sm1)).float())
             # X_sm2.append(torch.from_numpy(np.array(padded_sm2)).float())
-            X_sm1.append(torch.from_numpy(np.vstack((sm1, sm2, sm1g))).float())
-            X_sm2.append(torch.from_numpy(np.array(sm2)).float())
+            # X_sm1.append(torch.from_numpy(np.vstack((sm1, sm2, sm1g))).float())
+            # X_sm2.append(torch.from_numpy(np.array(sm2)).float())
+            X_sm1.append(torch.from_numpy(np.array(sm1g)).float())
+            X_sm2.append(torch.from_numpy(np.array(sm1g)).float())
         #len(max(smiles_list, key = len)) is 244
 
         X_trainval, X_test, Y_trainval, Y_test, dummy_trainval, dummy_test, X2_trainval, X2_test,  \

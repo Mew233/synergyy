@@ -55,6 +55,13 @@ def load_synergy(dataset,args):
         summary_data = summary_data[['compound0_x','compound0_y','DepMap_ID','tissue_name','synergy_loewe','ri_row', 'ri_col']].rename(columns={\
             'compound0_x':'drug1','compound0_y':'drug2','DepMap_ID':'cell','synergy_loewe':'score',\
                 'ri_row':'ic_1', 'ri_col':'ic_2'})
+        
+        proessed_dpi = pd.read_csv(os.path.join(ROOT_DIR, 'results','proessed_dpi_extended.csv'),index_col=0)
+
+        proessed_dpi.columns = proessed_dpi.columns.astype(int)
+        library = set(proessed_dpi.columns)
+        summary_data = summary_data[summary_data['drug1'].isin(library)]
+        summary_data = summary_data[summary_data['drug2'].isin(library)]
 
         return summary_data
     
@@ -71,36 +78,21 @@ def load_synergy(dataset,args):
 
     #create a dummy synergy dataframe
     def process_customized():
-        drugcomb = process_drugcomb()
-        # drugcomb_colon = drugcomb[drugcomb['tissue_name'] == 'haematopoietic_and_lymphoid']
-        drugcomb_colon = drugcomb.drop_duplicates(subset=['drug1', 'drug2'])
-
-        # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % "exp"),sep=',')
-        # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tcga_DLBC_%s.csv' % "exp"),sep=',')
-        crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','batchcorr_columbia_DLBC_%s.csv' % "exp"),sep=',')
-        # crc_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','lstaudt_DLBC_%s.csv' % "exp"),sep=',')
-        summary_data = pd.DataFrame(columns=['drug1','drug2','cell','tissue_name','score'])
-        cell_list = list(crc_exp.columns)
-        for crc_cell in cell_list: #0:255, 255:
-            drugcomb_colon['cell'] = crc_cell
-            drugcomb_colon['score'] = 0
-            summary_data = summary_data.append(drugcomb_colon, ignore_index=True)
-
-        summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','tissue_name','score'])
-        
         #// for dcdb
-        # summary_data = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Customized','dcdb_tmd8.csv'),sep=',').iloc[:,1:]
-        # summary_data['cell'] = "TMD8_ABC_EL025"
-        # dcdb_tmd8 = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Customized','dcdb_tmd8.csv'),sep=',').iloc[:,1:]
-        # columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','columbia_DLBC_%s.csv' % "exp"),sep=',')
-        # summary_data = pd.DataFrame(columns=['drug1','drug2','cell','score'])
-        # cell_list = list(columbia_exp.columns)
-        # # cell_list = ["TMD8_ABC_EL025"]
-        # for crc_cell in cell_list:
-        #     dcdb_tmd8['cell'] = crc_cell
-        #     dcdb_tmd8['score'] = 0
-        #     summary_data = summary_data.append(dcdb_tmd8, ignore_index=True)
-        # summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell'])
+        # for dcdb
+        dcdb_tmd8 = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'synergy_data','Customized','dcdb_tmd8.csv'),sep=',').iloc[:,1:]
+        dcdb_tmd8 = dcdb_tmd8.groupby(['drug1','drug2','cell']).agg({\
+            "score":'mean'}).reset_index()
+        summary_data = pd.DataFrame(columns=['drug1','drug2','cell','score'])
+        # columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_columbia_DLBC_%s_20221014.csv' % "exp"),sep=',')
+        columbia_exp = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_lstaudt_DLBC_%s.csv' % "GSVA_scores2"),sep=',')
+        cell_list = list(columbia_exp.columns)
+        for crc_cell in cell_list:
+            dcdb_tmd8['cell'] = crc_cell
+            summary_data = summary_data.append(dcdb_tmd8, ignore_index=True)
+
+        summary_data = summary_data.drop_duplicates(subset=['drug1','drug2','cell','score'])
+
         return summary_data
 
     # use locals() to run the specified function
@@ -203,20 +195,21 @@ def load_cellline_features(dataset,args):
         def load_file(postfix):
             # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','crc_%s.csv' % postfix),sep=',')
             # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','tcga_DLBC_%s.csv' % postfix),sep=',')
-            df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','batchcorr_columbia_DLBC_exp.csv'),sep=',')
+            # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','batchcorr_columbia_DLBC_exp.csv'),sep=',')
             # df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','lstaudt_DLBC_%s.csv' % "exp"),sep=',')
+            df = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized','orginal_lstaudt_DLBC_%s.csv' % "GSVA_scores2"),sep=',')
             return df
         # load all cell line features
         save_path = os.path.join(ROOT_DIR, 'data', 'cell_line_data','Customized')
         save_path = os.path.join(save_path, 'input_cellline_data.npy')
         if not os.path.exists(save_path):
             data_dicts = {}
-            for file_type in ['exp']: #only exp have
+            for file_type in ['exp','GSVA_scores']: #only exp have
                 data_dicts[ file_type ] = load_file(file_type)
             np.save(save_path, data_dicts)
         else:
             data_dicts = np.load(save_path,allow_pickle=True).item()
-            for file_type in ['exp']: #only exp have
+            for file_type in ['exp','GSVA_scores']: #only exp have
                 data_dicts[ file_type ] = load_file(file_type)
         return data_dicts
 

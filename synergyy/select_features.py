@@ -6,12 +6,19 @@ from utilitis import *
 ROOT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
 def get_drug(original_list):
-    targets = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all.csv'))
-    drug_targets = explode_dpi(targets)
+    targets = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_targets.csv'))
+    enzymes = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_enzyme.csv'))
+    carrier = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_carrier.csv'))
+    transporter = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','all_transporter.csv'))
+    all = pd.concat([targets,enzymes,carrier,transporter])
+    drug_targets = explode_dpi(all)
+    
+    dtc = pd.read_csv(os.path.join(ROOT_DIR, 'data', 'drug_data','dtc_db2ncbi.csv'))
+    drug_targets_L = pd.concat([drug_targets,dtc])
+    drug_targets_L = drug_targets_L.drop_duplicates(subset=['Drug IDs','NCBI_ID'])
 
-    drug_list_with_targets = drug_targets['Drug IDs'].unique().tolist()
+    drug_list_with_targets = drug_targets_L['Drug IDs'].unique().tolist()
     selected_drugs = list(set(original_list) & set(drug_list_with_targets))
-
     return selected_drugs
 
 def get_GNNCell(cellFeatures_dicts, cellset):

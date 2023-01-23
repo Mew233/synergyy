@@ -149,8 +149,8 @@ class Transynergy_Liu(nn.Module):
         # self.encoder = Encoder(d_input, d_model, N, heads, dropout)
         # self.decoder = Decoder(d_input, d_model, N, heads, dropout)
 
-        input_length = 1280 #1280 #768+244*2 #256/
-        self.out = OutputFeedForward(input_length, n_feature_type, d_layers=[64,64,1])
+        input_length = 2187 #1280 #768+244*2 #256/
+        self.out = OutputFeedForward(input_length, n_feature_type, d_layers=[128,64,1])
                 
         # self.transformer = Transformer_drug()
         # self.transformer_mg = Encoder(d_input=256, d_model=d_model,N=N, heads=heads, dropout=dropout)
@@ -190,12 +190,15 @@ class Transynergy_Liu(nn.Module):
         # 2) 5层transformer
         _src = self.reduction(src)
         _fp = self.reduction2(fp)
-        cat_input = cat((_src, _fp), dim=1)
+        _cell = sm1
+        # _cell = torch.unsqueeze(_cell, dim=1)
+        cat_input = cat((_src,_fp), dim=1)
 
         e_outputs = self.encoder(cat_input, src_mask)
         flat_e_output = e_outputs.view(-1, e_outputs.size(-2)*e_outputs.size(-1))
 
-        output = self.out(flat_e_output)
+        cat_output = cat((flat_e_output, _cell), dim=1)
+        output = self.out(cat_output)
 
         #3) 两个transformer
         # _src = self.reduction(src)
